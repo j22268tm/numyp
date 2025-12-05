@@ -28,6 +28,20 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // env.json から API キーを読み込む
+        val envFile = file("../../env.json")
+        var gmapKey = ""
+        if (envFile.exists()) {
+            try {
+                val jsonContent = envFile.readText()
+                val gmapKeyMatch = """"GMAP_API_KEY"\s*:\s*"([^"]+)"""".toRegex().find(jsonContent)
+                gmapKey = gmapKeyMatch?.groupValues?.get(1) ?: ""
+            } catch (e: Exception) {
+                logger.warn("Failed to read GMAP_API_KEY from env.json: ${e.message}")
+            }
+        }
+        resValue("string", "GMAP_KEY", gmapKey)
     }
 
     buildTypes {
