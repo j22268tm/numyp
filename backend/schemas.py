@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from uuid import UUID
+
 
 # 定数定義
 class CrowdLevel(str, Enum):
@@ -28,12 +30,12 @@ class SpotStatus(BaseModel):
     # likes_count: int = 0
 
 class SkinInfo(BaseModel):
-    id: int
+    id: UUID
     name: str
     image_url: str
 
 class AuthorInfo(BaseModel):
-    id: int
+    id: UUID
     username: str
     icon_url: Optional[str] = None
 
@@ -58,13 +60,13 @@ class LoginRequest(BaseModel):
     password: str
 
 class BuyItemRequest(BaseModel):
-    item_id: int
+    item_id: UUID
 
 
 # API Response Models サーバー→クライアント
 class SpotResponse(BaseModel):
     """スポット取得用モデル"""
-    id: int
+    id: UUID
     created_at: datetime
     
     # Grouping
@@ -81,7 +83,7 @@ class UserWallet(BaseModel):
 
 class UserResponse(BaseModel):
     """ユーザー情報レスポンス"""
-    id: int
+    id: UUID
     username: str
     icon_url: Optional[str] = None
     
