@@ -96,7 +96,7 @@ def get_default_user_icon_url() -> Optional[str]:
         )
     except Exception as e:
         # R2アップロードに失敗した場合、ログを記録してNoneを返す
-        logger.error(f"Failed to upload default user icon to R2: {str(e)}")
+        logger.exception("Failed to upload default user icon to R2")
         return None
 
 
@@ -124,8 +124,8 @@ def get_or_create_default_skin(db: Session) -> models.Skin:
             )
         except Exception as e:
             # R2アップロードに失敗した場合、ログを記録して例外を再発生
-            logger.error(f"Failed to upload default skin image to R2: {str(e)}")
-            raise RuntimeError(f"Cannot initialize default skin without R2 storage: {str(e)}")
+            logger.exception("Failed to upload default skin image to R2")
+            raise RuntimeError(f"Cannot initialize default skin without R2 storage: {str(e)}") from e
         
         default_skin = models.Skin(
             name="Default Pin",

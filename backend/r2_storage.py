@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 import logging
+import threading
 
 load_dotenv()
 
@@ -167,7 +168,7 @@ class R2Storage:
             
             return True
             
-        except ClientError as e:
+        except ClientError:
             logger.exception("Failed to delete file from R2")
             return False
     
@@ -243,11 +244,14 @@ class R2Storage:
 
 # シングルトンインスタンス
 _r2_storage = None
+_lock = threading.Lock()
 
 
 def get_r2_storage() -> R2Storage:
-    """R2Storageのシングルトンインスタンスを取得"""
+    """R2Storageのシングルトンインスタンスを取得（スレッドセーフ）"""
     global _r2_storage
     if _r2_storage is None:
-        _r2_storage = R2Storage()
+        with _lock:
+            if _r2_storage is None:
+                _r2_storage = R2Storage()
     return _r2_storage
