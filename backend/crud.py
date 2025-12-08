@@ -146,7 +146,7 @@ def get_spot_by_id(db: Session, spot_id: UUID) -> Optional[models.Spot]:
     return db.query(models.Spot).filter(models.Spot.id == spot_id).first()
 
 
-def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID) -> models.Spot:
+def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url: Optional[str] = None) -> models.Spot:
     """新規スポットを作成"""
     user = get_user_by_id(db, user_id)
     
@@ -160,7 +160,7 @@ def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID) -> models.
         longitude=spot.lng,
         title=spot.title,
         description=spot.description,
-        image_url="https://via.placeholder.com/300" if not spot.image_base64 else "https://via.placeholder.com/300",  # TODO: 画像アップロード実装
+        image_url=image_url,  # R2からのURLまたはNone
         crowd_level=spot.crowd_level if spot.crowd_level else models.CrowdLevelEnum.MEDIUM,
         rating=spot.rating if spot.rating else 3
     )

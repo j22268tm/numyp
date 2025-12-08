@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi import FastAPI, HTTPException, Depends, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
@@ -12,6 +12,9 @@ from uuid import uuid4, UUID
 from jose import JWTError, jwt
 import os
 from dotenv import load_dotenv
+from r2_storage import get_r2_storage
+import base64
+from io import BytesIO
 
 # 環境変数を読み込み
 load_dotenv()
@@ -36,6 +39,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
+    # allow_origins=["*"], for debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -174,6 +178,59 @@ def get_spots(
     return spots_response
 
 
+@app.post("/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)] = None,
+    folder: str = Query("images", description="Folder name in R2 bucket")
+):
+    """
+    画像ファイルをR2にアップロードする
+    
+    Args:
+        file: アップロードする画像ファイル
+        folder: R2バケット内のフォルダ名（デフォルト: images）
+    
+    Returns:
+        アップロードされた画像の公開URL
+    """
+    # ファイルタイプの検証
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # ファイルサイズの検証（10MB制限）
+    max_size = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    
+    if len(file_content) > max_size:
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+    
+    try:
+        # R2にアップロード
+        r2_storage = get_r2_storage()
+        image_url = r2_storage.upload_file(
+            file_data=BytesIO(file_content),
+            filename=file.filename,
+            content_type=file.content_type,
+            folder=folder
+        )
+        
+        return {
+            "success": True,
+            "image_url": image_url,
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "size": len(file_content)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
+
+
 @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
 def get_spot_detail(spot_id: UUID, db: Session = Depends(get_db)):
     """
@@ -220,9 +277,49 @@ def create_spot(
     """
     スポットを作成する。
     入力はフラット出力はネストされた構造にBackend側で変換して保存
+    画像がbase64で送られた場合はR2にアップロードする
     """
-    # データベースにスポットを作成
-    new_spot = crud.create_spot(db, spot, current_user.id)
+    image_url = None
+    
+    # 画像がbase64形式で送信された場合、R2にアップロード
+    if spot.image_base64:
+        try:
+            # base64文字列から画像データを抽出
+            # フォーマット: "data:image/jpeg;base64,/9j/4AAQ..." の場合
+            if "," in spot.image_base64:
+                header, encoded = spot.image_base64.split(",", 1)
+                # Content-Typeを抽出（例: "image/jpeg"）
+                content_type = header.split(":")[1].split(";")[0]
+            else:
+                encoded = spot.image_base64
+                content_type = "image/jpeg"  # デフォルト
+            
+            # base64デコード
+            image_data = base64.b64decode(encoded)
+            
+            # ファイル拡張子を決定
+            ext_map = {
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/webp": ".webp",
+                "image/gif": ".gif"
+            }
+            extension = ext_map.get(content_type, ".jpg")
+            
+            # R2にアップロード
+            r2_storage = get_r2_storage()
+            image_url = r2_storage.upload_file(
+                file_data=BytesIO(image_data),
+                filename=f"spot_{uuid4()}{extension}",
+                content_type=content_type,
+                folder="spots"
+            )
+            
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
+    
+    # データベースにスポットを作成（image_urlを含む）
+    new_spot = crud.create_spot(db, spot, current_user.id, image_url=image_url)
     
     # レスポンス形式に変換
     return schemas.SpotResponse(
@@ -276,6 +373,65 @@ def read_users_me(
             image_url=current_skin.image_url
         )
     )
+
+@app.post("/users/me/icon")
+async def update_user_icon(
+    file: UploadFile = File(...),
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    ユーザーのアイコン画像を更新する
+    
+    Args:
+        file: アップロードするアイコン画像ファイル
+    
+    Returns:
+        更新されたアイコンのURL
+    """
+    # ファイルタイプの検証
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # ファイルサイズの検証（5MB制限）
+    max_size = 5 * 1024 * 1024  # 5MB
+    file_content = await file.read()
+    
+    if len(file_content) > max_size:
+        raise HTTPException(status_code=400, detail="File size exceeds 5MB limit")
+    
+    try:
+        # R2にアップロード
+        r2_storage = get_r2_storage()
+        icon_url = r2_storage.upload_file(
+            file_data=BytesIO(file_content),
+            filename=f"user_icon_{current_user.id}.{file.filename.split('.')[-1]}",
+            content_type=file.content_type,
+            folder="user_icons"
+        )
+        
+        # データベースを更新
+        user = crud.get_user_by_id(db, current_user.id)
+        
+        # 古いアイコンがあれば削除（オプション）
+        # if user.icon_url:
+        #     r2_storage.delete_file(user.icon_url)
+        
+        user.icon_url = icon_url
+        db.commit()
+        
+        return {
+            "success": True,
+            "icon_url": icon_url,
+            "message": "User icon updated successfully"
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update icon: {str(e)}")
 
 @app.post("/shop/buy")
 def buy_item(
