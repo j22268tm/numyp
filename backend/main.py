@@ -4,6 +4,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional
 from datetime import datetime
 import schemas
+from uuid import uuid4, UUID
 
 app = FastAPI(
     title="Numyp API",
@@ -39,7 +40,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     # 本来はJWTトークンを解析してユーザーIDを取り出す
     # ダミーユーザーを返す
     return schemas.AuthorInfo(
-        id=42,
+        id=uuid4(),
         username=fake_user_db["username"],
         icon_url="https://via.placeholder.com/150"
     )
@@ -74,13 +75,13 @@ def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: 
     if not fake_spots_db:
         return [
             schemas.SpotResponse(
-                id=101,
+                id=UUID("00000000-0000-0000-0000-000000000101"),
                 created_at=datetime.now(),
                 location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
                 content=schemas.ContentInfo(title="ハチ公前", description=None, image_url="https://via.placeholder.com/50"),
                 status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-                author=schemas.AuthorInfo(id=99, username="admin"),
-                skin=schemas.SkinInfo(id=1, name="Default Pin", image_url="https://via.placeholder.com/50")
+                author=schemas.AuthorInfo(id=UUID("00000000-0000-0000-0000-000000000099"), username="admin"),
+                skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
             )
         ]
     
@@ -94,17 +95,16 @@ def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: 
         lightweight_spots.append(spot_lite)
         
     return lightweight_spots
-
-@app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
-def get_spot_detail(spot_id: int):
-    """
-    詳細表示用 特定のスポットの全情報を返す。
-    ピンをタップした後に呼ばれるAPI。
-    """
-    # dummy data
-    if spot_id == 101 and not fake_spots_db:
-         return schemas.SpotResponse(
-                id=101,
+    @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
+    def get_spot_detail(spot_id: UUID):
+        """
+        詳細表示用 特定のスポットの全情報を返す。
+        ピンをタップした後に呼ばれるAPI。
+        """
+        # dummy data
+        if spot_id == UUID("00000000-0000-0000-0000-000000000101") and not fake_spots_db:
+            return schemas.SpotResponse(
+                id=UUID("00000000-0000-0000-0000-000000000101"),
                 created_at=datetime.now(),
                 location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
                 content=schemas.ContentInfo(
@@ -113,15 +113,16 @@ def get_spot_detail(spot_id: int):
                     image_url="https://via.placeholder.com/300"
                 ),
                 status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-                author=schemas.AuthorInfo(id=99, username="admin"),
-                skin=schemas.SkinInfo(id=1, name="Default Pin", image_url="https://via.placeholder.com/50")
+                author=schemas.AuthorInfo(id=UUID("00000000-0000-0000-0000-000000000099"), username="admin"),
+                skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
             )
 
-    # from memory DB
-    found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
-    if not found_spot:
-        raise HTTPException(status_code=404, detail="Spot not found")
-    
+        # from memory DB
+        found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
+        if not found_spot:
+            raise HTTPException(status_code=404, detail="Spot not found")
+        
+        return found_spot
     return found_spot
 
 @app.post("/spots", response_model=schemas.SpotResponse)
@@ -134,7 +135,7 @@ def create_spot(
     入力はフラット出力はネストされた構造にBackend側で変換して保存
     """
     new_spot = schemas.SpotResponse(
-        id=len(fake_spots_db) + 102,
+        id=uuid4(),
         created_at=datetime.now(),
         
         location=schemas.LocationInfo(
@@ -152,7 +153,7 @@ def create_spot(
         ),
         author=current_user,
         skin=schemas.SkinInfo(
-            id=fake_user_db["skin_id"], 
+            id=UUID("00000000-0000-0000-0000-000000000001"), 
             name="My Current Skin", 
             image_url="https://via.placeholder.com/50"
         )
@@ -175,7 +176,7 @@ def read_users_me(current_user: schemas.AuthorInfo = Depends(get_current_user)):
         username=current_user.username,
         icon_url=current_user.icon_url,
         wallet=schemas.UserWallet(coins=fake_user_db["coins"]),
-        current_skin=schemas.SkinInfo(id=1, name="Default Pin", image_url="https://via.placeholder.com/50")
+        current_skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
     )
 
 @app.post("/shop/buy")
