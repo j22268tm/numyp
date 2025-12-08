@@ -1,3 +1,7 @@
+# backend
+__pycache__/
+venv/
+test/*
 # Miscellaneous
 *.class
 *.lock
