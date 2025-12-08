@@ -12,6 +12,8 @@ jobs:
   flutter-ci:
     name: Flutter CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     defaults:
       run:
@@ -42,6 +44,8 @@ jobs:
   backend-ci:
     name: Backend CI
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     defaults:
       run:
@@ -73,10 +77,12 @@ jobs:
             echo "No requirements.txt found, skipping dependency installation"
           fi
       
+      - name: Install linter
+        run: pip install flake8
+      
       - name: Run linter
         run: |
           if [ -f app.py ] && [ -s app.py ]; then
-            pip install flake8
             flake8 app.py --count --select=E9,F63,F7,F82 --show-source --statistics
           else
             echo "Skipping linter - app.py is empty"
