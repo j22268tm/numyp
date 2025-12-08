@@ -32,7 +32,7 @@ fake_user_db = {
     "skin_id": 1
 }
 
-# 認証のフリをするための設定（実際は何もチェックしない）
+# 認証のフリをするための設定(実際は何もチェックしない)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # 共通処理
@@ -209,7 +209,7 @@ def read_users_me(current_user: Annotated[schemas.AuthorInfo, Depends(get_curren
 @app.post("/shop/buy")
 def buy_item(
     request: schemas.BuyItemRequest,
-    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    _current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
 ):
     item_price = 100
     if fake_user_db["coins"] < item_price:
