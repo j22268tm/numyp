@@ -2,9 +2,27 @@ from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
 import schemas
+import crud
+import models
+from database import engine, get_db
 from uuid import uuid4, UUID
+from jose import JWTError, jwt
+import os
+from dotenv import load_dotenv
+
+# 環境変数を読み込み
+load_dotenv()
+
+# JWT設定
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# データベースのテーブルを作成
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Numyp API",
@@ -23,26 +41,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# Dummy Data fakedb
-fake_spots_db = []
-fake_user_db = {
-    "username": "walker_tk",
-    "coins": 1500,
-    "skin_id": 1
-}
-
-# 認証のフリをするための設定(実際は何もチェックしない)
+# 認証のための設定
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-# 共通処理
-def get_current_user(token: str = Depends(oauth2_scheme)):
-    # 本来はJWTトークンを解析してユーザーIDを取り出す
-    # ダミーユーザーを返す
+
+# ヘルパー関数
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """JWTトークンを作成"""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """現在のユーザーを取得"""
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = crud.get_user_by_id(db, UUID(user_id))
+    if user is None:
+        raise credentials_exception
+    
+    # AuthorInfo形式で返す
     return schemas.AuthorInfo(
-        id=uuid4(),
-        username=fake_user_db["username"],
-        icon_url="https://via.placeholder.com/150"
+        id=user.id,
+        username=user.username,
+        icon_url=user.icon_url
     )
 
 
@@ -53,14 +92,37 @@ def read_root():
 
 # Auth
 @app.post("/auth/signup")
-def signup(user: schemas.UserCreate):
-    return {"message": f"User {user.username} created successfully"}
+def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """新規ユーザー登録"""
+    # 既存のユーザー名をチェック
+    db_user = crud.get_user_by_username(db, username=user.username)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    # ユーザーを作成
+    new_user = crud.create_user(db, user)
+    return {"message": f"User {new_user.username} created successfully"}
 
 @app.post("/auth/login", response_model=schemas.Token)
-def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
-    # パスワードチェックは省略
+def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
+    """ログイン"""
+    # ユーザーを取得
+    user = crud.get_user_by_username(db, username=form_data.username)
+    if not user or not crud.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # JWTトークンを作成
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
+    )
+    
     return {
-        "access_token": "fake-jwt-token-for-hackathon",
+        "access_token": access_token,
         "token_type": "bearer"
     }
 
@@ -71,151 +133,180 @@ def get_spots(
     lat: Optional[float] = None,
     lng: Optional[float] = None,
     radius: Optional[float] = None,
+    db: Session = Depends(get_db)
 ):
     """
     Map表示用 スポット一覧を返す あえて情報量は少なめにしてます
     (lat, lng, radiusパラメータは将来の検索機能用に予約)
     """
-    # dummy data
-    if not fake_spots_db:
-        return [
-            schemas.SpotResponse(
-                id=UUID("00000000-0000-0000-0000-000000000101"),
-                created_at=datetime.now(),
-                location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
-                content=schemas.ContentInfo(
-                    title="ハチ公前",
-                    description=None,
-                    image_url="https://via.placeholder.com/50",
-                ),
-                status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-                author=schemas.AuthorInfo(
-                    id=UUID("00000000-0000-0000-0000-000000000099"),
-                    username="admin",
-                ),
-                skin=schemas.SkinInfo(
-                    id=UUID("00000000-0000-0000-0000-000000000001"),
-                    name="Default Pin",
-                    image_url="https://via.placeholder.com/50",
-                ),
+    # データベースからスポットを取得
+    db_spots = crud.get_spots(db, lat=lat, lng=lng, radius=radius)
+    
+    # レスポンス形式に変換
+    spots_response = []
+    for spot in db_spots:
+        # 軽量化のため description は None にする
+        spots_response.append(schemas.SpotResponse(
+            id=spot.id,
+            created_at=spot.created_at,
+            location=schemas.LocationInfo(lat=spot.latitude, lng=spot.longitude),
+            content=schemas.ContentInfo(
+                title=spot.title,
+                description=None,  # 軽量化
+                image_url=spot.image_url,
+            ),
+            status=schemas.SpotStatus(
+                crowd_level=schemas.CrowdLevel(spot.crowd_level.value),
+                rating=spot.rating
+            ),
+            author=schemas.AuthorInfo(
+                id=spot.author.id,
+                username=spot.author.username,
+                icon_url=spot.author.icon_url
+            ),
+            skin=schemas.SkinInfo(
+                id=spot.skin.id,
+                name=spot.skin.name,
+                image_url=spot.skin.image_url
             )
-        ]
-
-    # メモリ DB から取得したスポットを軽量化して返す
-    lightweight_spots: List[schemas.SpotResponse] = []
-    for spot in fake_spots_db:
-        spot_lite = spot.model_copy(
-            update={"content": spot.content.model_copy(update={"description": None})}
-        )
-        lightweight_spots.append(spot_lite)
-
-    return lightweight_spots
+        ))
+    
+    return spots_response
 
 
 @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
-def get_spot_detail(spot_id: UUID):
+def get_spot_detail(spot_id: UUID, db: Session = Depends(get_db)):
     """
     詳細表示用 特定のスポットの全情報を返す。
     ピンをタップした後に呼ばれるAPI。
     """
-    # dummy data
-    if spot_id == UUID("00000000-0000-0000-0000-000000000101") and not fake_spots_db:
-        return schemas.SpotResponse(
-            id=UUID("00000000-0000-0000-0000-000000000101"),
-            created_at=datetime.now(),
-            location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
-            content=schemas.ContentInfo(
-                title="ハチ公前",
-                description="ここは詳細画面なので、長文の説明や高解像度の画像URLが含まれます。",
-                image_url="https://via.placeholder.com/300",
-            ),
-            status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-            author=schemas.AuthorInfo(
-                id=UUID("00000000-0000-0000-0000-000000000099"),
-                username="admin",
-            ),
-            skin=schemas.SkinInfo(
-                id=UUID("00000000-0000-0000-0000-000000000001"),
-                name="Default Pin",
-                image_url="https://via.placeholder.com/50",
-            ),
-        )
-
-    # from memory DB
-    found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
-    if not found_spot:
+    # データベースからスポットを取得
+    spot = crud.get_spot_by_id(db, spot_id)
+    if not spot:
         raise HTTPException(status_code=404, detail="Spot not found")
-
-    return found_spot
+    
+    # レスポンス形式に変換
+    return schemas.SpotResponse(
+        id=spot.id,
+        created_at=spot.created_at,
+        location=schemas.LocationInfo(lat=spot.latitude, lng=spot.longitude),
+        content=schemas.ContentInfo(
+            title=spot.title,
+            description=spot.description,  # 詳細では description も含める
+            image_url=spot.image_url,
+        ),
+        status=schemas.SpotStatus(
+            crowd_level=schemas.CrowdLevel(spot.crowd_level.value),
+            rating=spot.rating
+        ),
+        author=schemas.AuthorInfo(
+            id=spot.author.id,
+            username=spot.author.username,
+            icon_url=spot.author.icon_url
+        ),
+        skin=schemas.SkinInfo(
+            id=spot.skin.id,
+            name=spot.skin.name,
+            image_url=spot.skin.image_url
+        )
+    )
 
 @app.post("/spots", response_model=schemas.SpotResponse)
 def create_spot(
     spot: schemas.SpotCreate,
     current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db)
 ):
     """
     スポットを作成する。
     入力はフラット出力はネストされた構造にBackend側で変換して保存
     """
-    # None値をデフォルトで置き換えてValidationErrorを防ぐ
-    crowd_level = spot.crowd_level if spot.crowd_level is not None else schemas.CrowdLevel.MEDIUM
-    rating = spot.rating if spot.rating is not None else 3
+    # データベースにスポットを作成
+    new_spot = crud.create_spot(db, spot, current_user.id)
     
-    new_spot = schemas.SpotResponse(
-        id=uuid4(),
-        created_at=datetime.now(),
-        
-        location=schemas.LocationInfo(
-            lat=spot.lat, 
-            lng=spot.lng
-        ),
+    # レスポンス形式に変換
+    return schemas.SpotResponse(
+        id=new_spot.id,
+        created_at=new_spot.created_at,
+        location=schemas.LocationInfo(lat=new_spot.latitude, lng=new_spot.longitude),
         content=schemas.ContentInfo(
-            title=spot.title, 
-            description=spot.description,
-            image_url="https://via.placeholder.com/300"
+            title=new_spot.title,
+            description=new_spot.description,
+            image_url=new_spot.image_url,
         ),
         status=schemas.SpotStatus(
-            crowd_level=crowd_level, 
-            rating=rating
+            crowd_level=schemas.CrowdLevel(new_spot.crowd_level.value),
+            rating=new_spot.rating
         ),
-        author=current_user,
+        author=schemas.AuthorInfo(
+            id=new_spot.author.id,
+            username=new_spot.author.username,
+            icon_url=new_spot.author.icon_url
+        ),
         skin=schemas.SkinInfo(
-            id=UUID("00000000-0000-0000-0000-000000000001"), 
-            name="My Current Skin", 
-            image_url="https://via.placeholder.com/50"
+            id=new_spot.skin.id,
+            name=new_spot.skin.name,
+            image_url=new_spot.skin.image_url
         )
     )
-
-    # save to memory DB
-    fake_spots_db.append(new_spot)
-
-    # otamesi
-    fake_user_db["coins"] += 10
-
-    return new_spot
 
 
 # Users
 @app.get("/users/me", response_model=schemas.UserResponse)
-def read_users_me(current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)]):
+def read_users_me(
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """現在のユーザー情報を取得"""
+    user = crud.get_user_by_id(db, current_user.id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # 現在のスキン情報を取得
+    current_skin = user.current_skin if user.current_skin else crud.get_or_create_default_skin(db)
+    
     return schemas.UserResponse(
-        id=current_user.id,
-        username=current_user.username,
-        icon_url=current_user.icon_url,
-        wallet=schemas.UserWallet(coins=fake_user_db["coins"]),
-        current_skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
+        id=user.id,
+        username=user.username,
+        icon_url=user.icon_url,
+        wallet=schemas.UserWallet(coins=user.coins),
+        current_skin=schemas.SkinInfo(
+            id=current_skin.id,
+            name=current_skin.name,
+            image_url=current_skin.image_url
+        )
     )
 
 @app.post("/shop/buy")
 def buy_item(
     request: schemas.BuyItemRequest,
-    _current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db)
 ):
-    item_price = 100
-    if fake_user_db["coins"] < item_price:
-        raise HTTPException(status_code=400, detail="Not enough coins")
+    """アイテム（スキン）を購入"""
+    # スキンを購入
+    success = crud.purchase_skin(db, current_user.id, request.item_id)
     
-    fake_user_db["coins"] -= item_price
-    return {"success": True, "remaining_coins": fake_user_db["coins"], "message": f"Item {request.item_id} purchased!"}
+    if not success:
+        user = crud.get_user_by_id(db, current_user.id)
+        skin = crud.get_skin_by_id(db, request.item_id)
+        
+        if not skin:
+            raise HTTPException(status_code=404, detail="Item not found")
+        if crud.user_owns_skin(db, current_user.id, request.item_id):
+            raise HTTPException(status_code=400, detail="Already owned")
+        if user.coins < skin.price:
+            raise HTTPException(status_code=400, detail="Not enough coins")
+        
+        raise HTTPException(status_code=400, detail="Purchase failed")
+    
+    # 更新後のコイン残高を取得
+    user = crud.get_user_by_id(db, current_user.id)
+    
+    return {
+        "success": True,
+        "remaining_coins": user.coins,
+        "message": f"Item {request.item_id} purchased!"
+    }
 
 # uvicorn main:app --reload
