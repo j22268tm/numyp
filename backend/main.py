@@ -119,7 +119,7 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
             status_code=400,
             detail="Username already registered"
         )
-    except Exception as e:
+    except Exception:
         # その他のデータベースエラー
         db.rollback()
         logger.exception("Failed to create user")
