@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 import schemas
 import crud
@@ -107,9 +108,25 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
     
-    # ユーザーを作成
-    new_user = crud.create_user(db, user)
-    return {"message": f"User {new_user.username} created successfully"}
+    try:
+        # ユーザーを作成
+        new_user = crud.create_user(db, user)
+        return {"message": f"User {new_user.username} created successfully"}
+    except IntegrityError:
+        # レースコンディションによる一意制約違反をハンドリング
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Username already registered"
+        )
+    except Exception as e:
+        # その他のデータベースエラー
+        db.rollback()
+        logger.exception("Failed to create user")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create user"
+        )
 
 @app.post("/auth/login", response_model=schemas.Token)
 def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):

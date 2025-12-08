@@ -195,7 +195,10 @@ class R2Storage:
             
             return True
             
-        except ClientError:
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return False
+            logger.warning(f"Unexpected error checking file existence: {e}")
             return False
     
     def _generate_public_url(self, object_key: str) -> str:
@@ -231,7 +234,7 @@ class R2Storage:
                 return file_url.replace(f"{self.public_url.rstrip('/')}/", "")
             
             # デフォルトURLの場合
-            if self.endpoint_url in file_url:
+            if file_url.startswith(self.endpoint_url):
                 parts = file_url.split(f"{self.bucket_name}/")
                 if len(parts) > 1:
                     return parts[1]

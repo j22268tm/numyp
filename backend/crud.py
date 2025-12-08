@@ -5,9 +5,20 @@ import models
 import schemas
 from uuid import UUID
 from passlib.context import CryptContext
+from enum import Enum
 
 # パスワードハッシュ化
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+# ===== Purchase Result =====
+class PurchaseResult(Enum):
+    """スキン購入結果"""
+    SUCCESS = "success"
+    USER_NOT_FOUND = "user_not_found"
+    SKIN_NOT_FOUND = "skin_not_found"
+    ALREADY_OWNED = "already_owned"
+    INSUFFICIENT_COINS = "insufficient_coins"
 
 
 # ===== User CRUD =====
@@ -59,7 +70,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def update_user_coins(db: Session, user_id: UUID, coin_delta: int) -> models.User:
-    """ユーザーのコインを更新"""
+    """
+    ユーザーのコインを更新
+    """
     user = get_user_by_id(db, user_id)
     if not user:
         raise ValueError(f"user {user_id} not found")
@@ -69,8 +82,8 @@ def update_user_coins(db: Session, user_id: UUID, coin_delta: int) -> models.Use
         raise ValueError("coin balance must not be negative")
 
     user.coins = new_balance
-    db.commit()
-    db.refresh(user)
+    # 呼び出し元でコミットを管理するため、ここではコミットしない
+    db.flush()
     return user
 
 
@@ -94,7 +107,7 @@ def get_default_user_icon_url() -> Optional[str]:
             object_key="defaults/default_user_icon.png",
             content_type="image/png"
         )
-    except Exception as e:
+    except Exception:
         # R2アップロードに失敗した場合、ログを記録してNoneを返す
         logger.exception("Failed to upload default user icon to R2")
         return None
@@ -158,21 +171,23 @@ def user_owns_skin(db: Session, user_id: UUID, skin_id: UUID) -> bool:
     ).first() is not None
 
 
-def purchase_skin(db: Session, user_id: UUID, skin_id: UUID) -> bool:
+def purchase_skin(db: Session, user_id: UUID, skin_id: UUID) -> PurchaseResult:
     """スキンを購入"""
     user = get_user_by_id(db, user_id)
-    skin = get_skin_by_id(db, skin_id)
+    if not user:
+        return PurchaseResult.USER_NOT_FOUND
     
-    if not user or not skin:
-        return False
+    skin = get_skin_by_id(db, skin_id)
+    if not skin:
+        return PurchaseResult.SKIN_NOT_FOUND
     
     # すでに所有している場合
     if user_owns_skin(db, user_id, skin_id):
-        return False
+        return PurchaseResult.ALREADY_OWNED
     
     # コインが足りない場合
     if user.coins < skin.price:
-        return False
+        return PurchaseResult.INSUFFICIENT_COINS
     
     # コインを減らす
     user.coins -= skin.price
@@ -182,7 +197,7 @@ def purchase_skin(db: Session, user_id: UUID, skin_id: UUID) -> bool:
     db.add(user_skin)
     db.commit()
     
-    return True
+    return PurchaseResult.SUCCESS
 
 
 # ===== Spot CRUD =====
@@ -238,7 +253,7 @@ def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url:
         # 両方成功した場合のみコミット
         db.commit()
         db.refresh(db_spot)
-    except Exception as e:
+    except Exception:
         db.rollback()
         raise
 
