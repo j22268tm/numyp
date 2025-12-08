@@ -22,6 +22,7 @@ import logging
 load_dotenv()
 
 # ロガー設定
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # JWT設定
@@ -80,7 +81,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         if user_id is None:
             raise credentials_exception
     except JWTError:
-        raise credentials_exception
+        raise credentials_exception from None
     
     user = crud.get_user_by_id(db, UUID(user_id))
     if user is None:
@@ -344,10 +345,10 @@ def create_spot(
             
         except (ValueError, base64.binascii.Error):
             # base64フォーマット不正などクライアント側の問題
-            raise HTTPException(status_code=400, detail="Invalid image data")
+            raise HTTPException(status_code=400, detail="Invalid image data") from None
         except Exception:
-            # TODO: ログに例外を記録
-            raise HTTPException(status_code=500, detail="Failed to upload image")
+            logger.exception("Failed to upload spot image")
+            raise HTTPException(status_code=500, detail="Failed to upload image") from None
     
     # データベースにスポットを作成（image_urlを含む）
     new_spot = crud.create_spot(db, spot, current_user.id, image_url=image_url)
@@ -438,9 +439,14 @@ async def update_user_icon(
     try:
         # R2にアップロード
         r2_storage = get_r2_storage()
+        
+        # content_typeから拡張子を決定する（安全な方法）
+        ext_map = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+        extension = ext_map.get(file.content_type, "jpg")
+        
         icon_url = r2_storage.upload_file(
             file_data=BytesIO(file_content),
-            filename=f"user_icon_{current_user.id}.{file.filename.split('.')[-1]}",
+            filename=f"user_icon_{current_user.id}.{extension}",
             content_type=file.content_type,
             folder="user_icons"
         )
@@ -501,6 +507,9 @@ def buy_item(
     
     # 更新後のコイン残高を取得
     user = crud.get_user_by_id(db, current_user.id)
+    if not user:
+        # 購入は成功したがユーザー取得に失敗（理論上は発生しない）
+        return {"success": True, "message": f"Item {request.item_id} purchased!"}
     
     return {
         "success": True,

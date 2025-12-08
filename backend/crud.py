@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import and_
 from typing import Optional, List
 import models
@@ -209,7 +209,10 @@ def get_spots(
     limit: int = 100
 ) -> List[models.Spot]:
     """スポット一覧を取得（将来的に位置情報フィルタリング実装可能）"""
-    query = db.query(models.Spot).order_by(models.Spot.created_at.desc())
+    query = db.query(models.Spot).options(
+        selectinload(models.Spot.author),
+        selectinload(models.Spot.skin)
+    ).order_by(models.Spot.created_at.desc())
     
     # 位置情報パラメータは将来のフィルタ用に予約
     _ = (lat, lng, radius)
@@ -219,7 +222,10 @@ def get_spots(
 
 def get_spot_by_id(db: Session, spot_id: UUID) -> Optional[models.Spot]:
     """IDでスポットを取得"""
-    return db.query(models.Spot).filter(models.Spot.id == spot_id).first()
+    return db.query(models.Spot).options(
+        selectinload(models.Spot.author),
+        selectinload(models.Spot.skin)
+    ).filter(models.Spot.id == spot_id).first()
 
 
 def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url: Optional[str] = None) -> models.Spot:
