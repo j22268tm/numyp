@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from datetime import datetime
 import schemas
 from uuid import uuid4, UUID
@@ -14,10 +14,10 @@ app = FastAPI(
 
 
 # CORS
-# ハッカソン用なので全許可 ("*") 
+# ハッカソン用,開発環境のオリジンを許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +57,7 @@ def signup(user: schemas.UserCreate):
     return {"message": f"User {user.username} created successfully"}
 
 @app.post("/auth/login", response_model=schemas.Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
+def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     # パスワードチェックは省略
     return {
         "access_token": "fake-jwt-token-for-hackathon",
@@ -68,12 +68,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 # Spots
 @app.get("/spots", response_model=List[schemas.SpotResponse])
 def get_spots(
-    _lat: Optional[float] = None,
-    _lng: Optional[float] = None,
-    _radius: Optional[float] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    radius: Optional[float] = None,
 ):
     """
     Map表示用 スポット一覧を返す あえて情報量は少なめにしてます
+    (lat, lng, radiusパラメータは将来の検索機能用に予約)
     """
     # dummy data
     if not fake_spots_db:
@@ -150,12 +151,16 @@ def get_spot_detail(spot_id: UUID):
 @app.post("/spots", response_model=schemas.SpotResponse)
 def create_spot(
     spot: schemas.SpotCreate,
-    current_user: schemas.AuthorInfo = Depends(get_current_user)
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
 ):
     """
     スポットを作成する。
     入力はフラット出力はネストされた構造にBackend側で変換して保存
     """
+    # None値をデフォルトで置き換えてValidationErrorを防ぐ
+    crowd_level = spot.crowd_level if spot.crowd_level is not None else schemas.CrowdLevel.MEDIUM
+    rating = spot.rating if spot.rating is not None else 3
+    
     new_spot = schemas.SpotResponse(
         id=uuid4(),
         created_at=datetime.now(),
@@ -170,8 +175,8 @@ def create_spot(
             image_url="https://via.placeholder.com/300"
         ),
         status=schemas.SpotStatus(
-            crowd_level=spot.crowd_level, 
-            rating=spot.rating
+            crowd_level=crowd_level, 
+            rating=rating
         ),
         author=current_user,
         skin=schemas.SkinInfo(
@@ -192,7 +197,7 @@ def create_spot(
 
 # Users
 @app.get("/users/me", response_model=schemas.UserResponse)
-def read_users_me(current_user: schemas.AuthorInfo = Depends(get_current_user)):
+def read_users_me(current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)]):
     return schemas.UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -202,7 +207,10 @@ def read_users_me(current_user: schemas.AuthorInfo = Depends(get_current_user)):
     )
 
 @app.post("/shop/buy")
-def buy_item(request: schemas.BuyItemRequest, current_user: schemas.AuthorInfo = Depends(get_current_user)):
+def buy_item(
+    request: schemas.BuyItemRequest,
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+):
     item_price = 100
     if fake_user_db["coins"] < item_price:
         raise HTTPException(status_code=400, detail="Not enough coins")
