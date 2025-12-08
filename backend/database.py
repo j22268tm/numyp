@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 import os
 
@@ -12,10 +11,14 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # CockroachDB用のエンジン作成
-# NullPoolを使用してコネクションプーリングを無効化（CockroachDBの推奨設定）
+# QueuePool
 engine = create_engine(
     DATABASE_URL,
-    poolclass=NullPool,
+    pool_size=10,
+    max_overflow=0,
+    pool_recycle=300,
+    pool_timeout=20,
+    pool_pre_ping=True,
     connect_args={"connect_timeout": 10}
 )
 

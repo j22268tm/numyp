@@ -1,6 +1,5 @@
 # backend
 __pycache__/
-*.pyc
 venv/
 
 # Miscellaneous

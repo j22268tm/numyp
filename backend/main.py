@@ -20,12 +20,12 @@ from io import BytesIO
 load_dotenv()
 
 # JWT設定
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY must be set in environment for security reasons")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# データベースのテーブルを作成
-models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Numyp API",
@@ -180,8 +180,8 @@ def get_spots(
 
 @app.post("/upload/image")
 async def upload_image(
+    _current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
     file: UploadFile = File(...),
-    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)] = None,
     folder: str = Query("images", description="Folder name in R2 bucket")
 ):
     """
@@ -192,7 +192,7 @@ async def upload_image(
         folder: R2バケット内のフォルダ名（デフォルト: images）
     
     Returns:
-        アップロードされた画像の公開URL
+        アップロードされた画像の公開 URL
     """
     # ファイルタイプの検証
     allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -227,8 +227,9 @@ async def upload_image(
             "size": len(file_content)
         }
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload image: {str(e)}")
+    except Exception:
+        # TODO: ログに例外を記録 (logger.exception("Failed to upload image"))
+        raise HTTPException(status_code=500, detail="Failed to upload image")
 
 
 @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
@@ -283,6 +284,11 @@ def create_spot(
     
     # 画像がbase64形式で送信された場合、R2にアップロード
     if spot.image_base64:
+        # base64サイズ制限（約10MB相当）
+        max_base64_size = 14 * 1024 * 1024  # 10MBをbase64すると約4/3倍
+        if len(spot.image_base64) > max_base64_size:
+            raise HTTPException(status_code=400, detail="Image data is too large")
+
         try:
             # base64文字列から画像データを抽出
             # フォーマット: "data:image/jpeg;base64,/9j/4AAQ..." の場合
@@ -315,8 +321,12 @@ def create_spot(
                 folder="spots"
             )
             
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to upload image: {str(e)}")
+        except (ValueError, base64.binascii.Error):
+            # base64フォーマット不正などクライアント側の問題
+            raise HTTPException(status_code=400, detail="Invalid image data")
+        except Exception:
+            # TODO: ログに例外を記録
+            raise HTTPException(status_code=500, detail="Failed to upload image")
     
     # データベースにスポットを作成（image_urlを含む）
     new_spot = crud.create_spot(db, spot, current_user.id, image_url=image_url)
@@ -376,9 +386,9 @@ def read_users_me(
 
 @app.post("/users/me/icon")
 async def update_user_icon(
-    file: UploadFile = File(...),
-    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)] = None,
-    db: Session = Depends(get_db)
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...)
 ):
     """
     ユーザーのアイコン画像を更新する
@@ -416,8 +426,10 @@ async def update_user_icon(
         
         # データベースを更新
         user = crud.get_user_by_id(db, current_user.id)
-        
-        # 古いアイコンがあれば削除（オプション）
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # 古いアイコンがあれば削除
         # if user.icon_url:
         #     r2_storage.delete_file(user.icon_url)
         
@@ -430,7 +442,11 @@ async def update_user_icon(
             "message": "User icon updated successfully"
         }
         
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
+        # TODO: ログに例外を記録 (logger.exception("Failed to update icon"))
+        raise HTTPException(status_code=500, detail="Failed to update user icon")
         raise HTTPException(status_code=500, detail=f"Failed to update icon: {str(e)}")
 
 @app.post("/shop/buy")

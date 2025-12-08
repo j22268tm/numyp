@@ -35,17 +35,17 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
         current_skin_id=default_skin.id
     )
     db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
+    db.flush()  # ID採番を明示
+
     # デフォルトスキンを所有スキンに追加
     user_skin = models.UserSkin(
         user_id=db_user.id,
-        skin_id=default_skin.id
+        skin_id=default_skin.id,
     )
     db.add(user_skin)
+
     db.commit()
-    
+    db.refresh(db_user)
     return db_user
 
 
@@ -57,10 +57,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def update_user_coins(db: Session, user_id: UUID, coin_delta: int) -> models.User:
     """ユーザーのコインを更新"""
     user = get_user_by_id(db, user_id)
-    if user:
-        user.coins += coin_delta
-        db.commit()
-        db.refresh(user)
+    if not user:
+        raise ValueError(f"user {user_id} not found")
+
+    new_balance = user.coins + coin_delta
+    if new_balance < 0:
+        raise ValueError("coin balance must not be negative")
+
+    user.coins = new_balance
+    db.commit()
+    db.refresh(user)
     return user
 
 
@@ -138,6 +144,9 @@ def get_spots(
     """スポット一覧を取得（将来的に位置情報フィルタリング実装可能）"""
     query = db.query(models.Spot).order_by(models.Spot.created_at.desc())
     
+    # 位置情報パラメータは将来のフィルタ用に予約
+    _ = (lat, lng, radius)
+    
     return query.limit(limit).all()
 
 
@@ -149,10 +158,12 @@ def get_spot_by_id(db: Session, spot_id: UUID) -> Optional[models.Spot]:
 def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url: Optional[str] = None) -> models.Spot:
     """新規スポットを作成"""
     user = get_user_by_id(db, user_id)
-    
+    if user is None:
+        raise ValueError(f"user {user_id} not found")
+
     # ユーザーの現在のスキンを使用
-    skin_id = user.current_skin_id if user.current_skin_id else get_or_create_default_skin(db).id
-    
+    skin_id = user.current_skin_id or get_or_create_default_skin(db).id
+
     db_spot = models.Spot(
         author_id=user_id,
         skin_id=skin_id,
@@ -162,14 +173,14 @@ def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url:
         description=spot.description,
         image_url=image_url,  # R2からのURLまたはNone
         crowd_level=spot.crowd_level if spot.crowd_level else models.CrowdLevelEnum.MEDIUM,
-        rating=spot.rating if spot.rating else 3
+        rating=spot.rating if spot.rating is not None else 3,
     )
-    
+
     db.add(db_spot)
     db.commit()
     db.refresh(db_spot)
-    
+
     # 投稿報酬としてコインを付与
     update_user_coins(db, user_id, 10)
-    
+
     return db_spot

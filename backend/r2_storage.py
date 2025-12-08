@@ -7,8 +7,11 @@ from datetime import datetime
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class R2Storage:    
@@ -38,7 +41,8 @@ class R2Storage:
         file_data: BinaryIO,
         filename: str,
         content_type: Optional[str] = None,
-        folder: str = "images"
+        folder: str = "images",
+        public: bool = True
     ) -> str:
         """
         ファイルをR2にアップロードする
@@ -48,6 +52,7 @@ class R2Storage:
             filename: オリジナルのファイル名
             content_type: ファイルのMIMEタイプ（例: 'image/jpeg'）
             folder: R2バケット内のフォルダ名
+            public: 公開アクセスを許可するかどうか（デフォルト: True）
         
         Returns:
             アップロードされたファイルの公開URL
@@ -66,7 +71,8 @@ class R2Storage:
                 extra_args['ContentType'] = content_type
             
             # ACLをpublic-readに設定（公開アクセス可能にする）
-            extra_args['ACL'] = 'public-read'
+            if public:
+                extra_args['ACL'] = 'public-read'
             
             # ファイルをアップロード
             self.s3_client.upload_fileobj(
@@ -110,7 +116,7 @@ class R2Storage:
             return True
             
         except ClientError as e:
-            print(f"Failed to delete file from R2: {str(e)}")
+            logger.error(f"Failed to delete file from R2: {str(e)}")
             return False
     
     def file_exists(self, file_url: str) -> bool:
