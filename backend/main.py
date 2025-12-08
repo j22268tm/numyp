@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional
@@ -85,16 +85,16 @@ def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: 
             )
         ]
     
-    # 実際はSQLで必要なカラムだけSELECTするのが正解
-    lightweight_spots = []
-    for spot in fake_spots_db:
-        # Pydanticのcopyメソッドを使ってオブジェクトを複製し、重いフィールドを削ぐ
-        spot_lite = spot.model_copy(update={
-            "content": spot.content.model_copy(update={"description": None}) 
-        })
-        lightweight_spots.append(spot_lite)
-        
-    return lightweight_spots
+        lightweight_spots = []
+        for spot in fake_spots_db:
+            spot_lite = spot.model_copy(update={
+                "content": spot.content.model_copy(update={"description": None}) 
+            })
+            lightweight_spots.append(spot_lite)
+            
+        return lightweight_spots
+    
+    
     @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
     def get_spot_detail(spot_id: UUID):
         """
@@ -116,14 +116,13 @@ def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: 
                 author=schemas.AuthorInfo(id=UUID("00000000-0000-0000-0000-000000000099"), username="admin"),
                 skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
             )
-
+    
         # from memory DB
         found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
         if not found_spot:
             raise HTTPException(status_code=404, detail="Spot not found")
         
         return found_spot
-    return found_spot
 
 @app.post("/spots", response_model=schemas.SpotResponse)
 def create_spot(
