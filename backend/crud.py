@@ -119,7 +119,7 @@ def get_or_create_default_skin(db: Session) -> models.Skin:
         try:
             image_url = r2.upload_static_file(
                 file_path=default_icon_path,
-                object_key="defaults/default_pin.png",
+                object_key="defaults/default_user_icon.png",
                 content_type="image/png"
             )
         except Exception as e:
@@ -228,11 +228,18 @@ def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url:
         rating=spot.rating if spot.rating is not None else 3,
     )
 
-    db.add(db_spot)
-    db.commit()
-    db.refresh(db_spot)
-
-    # 投稿報酬としてコインを付与
-    update_user_coins(db, user_id, 10)
+    try:
+        db.add(db_spot)
+        db.flush()  # IDを取得するためflushを実行
+        
+        # 投稿報酬としてコインを付与（同一トランザクション内）
+        update_user_coins(db, user_id, 10)
+        
+        # 両方成功した場合のみコミット
+        db.commit()
+        db.refresh(db_spot)
+    except Exception as e:
+        db.rollback()
+        raise
 
     return db_spot

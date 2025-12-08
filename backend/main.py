@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
-from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta, timezone
 import schemas
 import crud
 import models
@@ -42,8 +42,8 @@ app = FastAPI(
 # ハッカソン用,開発環境のオリジンを許可
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
-    allow_origins=["*"], # for debug
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
+    # allow_origins=["*"], # for debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,9 +58,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """JWTトークンを作成"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -433,9 +433,12 @@ async def update_user_icon(
         if user is None:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # 古いアイコンがあれば削除
-        # if user.icon_url:
-        #     r2_storage.delete_file(user.icon_url)
+        # TODO: 古いアイコンの削除を実装（ストレージ容量の節約）
+        # if user.icon_url and not user.icon_url.startswith("defaults/"):
+        #     try:
+        #         r2_storage.delete_file(user.icon_url)
+        #     except Exception:
+        #         logger.warning("Failed to delete old icon, continuing anyway")
         
         user.icon_url = icon_url
         db.commit()
@@ -450,7 +453,7 @@ async def update_user_icon(
         raise
     except Exception as e:
         logger.exception("Failed to update icon")
-        raise HTTPException(status_code=500, detail=f"Failed to update icon: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update icon") from e
 
 @app.post("/shop/buy")
 def buy_item(
@@ -465,6 +468,10 @@ def buy_item(
     if not success:
         user = crud.get_user_by_id(db, current_user.id)
         skin = crud.get_skin_by_id(db, request.item_id)
+        
+        # ユーザーの存在チェック
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
         
         if not skin:
             raise HTTPException(status_code=404, detail="Item not found")

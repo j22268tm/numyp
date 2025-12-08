@@ -88,7 +88,7 @@ class R2Storage:
             return public_url
             
         except ClientError as e:
-            raise Exception(f"Failed to upload file to R2: {str(e)}")
+            raise Exception(f"Failed to upload file to R2: {e!s}") from e
     
     def upload_static_file(
         self,
@@ -140,7 +140,7 @@ class R2Storage:
             return self._generate_public_url(object_key)
             
         except ClientError as e:
-            raise Exception(f"Failed to upload static file to R2: {str(e)}")
+            raise Exception(f"Failed to upload static file to R2: {e!s}") from e
     
     def delete_file(self, file_url: str) -> bool:
         """
@@ -168,7 +168,7 @@ class R2Storage:
             return True
             
         except ClientError as e:
-            logger.error(f"Failed to delete file from R2: {str(e)}")
+            logger.exception("Failed to delete file from R2")
             return False
     
     def file_exists(self, file_url: str) -> bool:
