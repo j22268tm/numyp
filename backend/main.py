@@ -15,9 +15,13 @@ from dotenv import load_dotenv
 from r2_storage import get_r2_storage
 import base64
 from io import BytesIO
+import logging
 
 # 環境変数を読み込み
 load_dotenv()
+
+# ロガー設定
+logger = logging.getLogger(__name__)
 
 # JWT設定
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -38,8 +42,8 @@ app = FastAPI(
 # ハッカソン用,開発環境のオリジンを許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
-    # allow_origins=["*"], for debug
+    # allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
+    allow_origins=["*"], # for debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -444,9 +448,8 @@ async def update_user_icon(
         
     except HTTPException:
         raise
-    except Exception:
-        # TODO: ログに例外を記録 (logger.exception("Failed to update icon"))
-        raise HTTPException(status_code=500, detail="Failed to update user icon")
+    except Exception as e:
+        logger.exception("Failed to update icon")
         raise HTTPException(status_code=500, detail=f"Failed to update icon: {str(e)}")
 
 @app.post("/shop/buy")

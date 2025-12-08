@@ -28,11 +28,15 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     # デフォルトスキンを取得または作成
     default_skin = get_or_create_default_skin(db)
     
+    # デフォルトアイコンURLを取得
+    default_icon_url = get_default_user_icon_url()
+    
     db_user = models.User(
         username=user.username,
         hashed_password=hashed_password,
         coins=0,
-        current_skin_id=default_skin.id
+        current_skin_id=default_skin.id,
+        icon_url=default_icon_url
     )
     db.add(db_user)
     db.flush()  # ID採番を明示
@@ -70,14 +74,62 @@ def update_user_coins(db: Session, user_id: UUID, coin_delta: int) -> models.Use
     return user
 
 
+# ===== Default Assets =====
+def get_default_user_icon_url() -> Optional[str]:
+    """デフォルトユーザーアイコンのURLを取得（R2にアップロード、既存の場合は再利用）"""
+    from r2_storage import get_r2_storage
+    from pathlib import Path
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        r2 = get_r2_storage()
+        static_dir = Path(__file__).parent / "static"
+        default_icon_path = static_dir / "default_user_icon.png"
+        
+        # R2にアップロード（既に存在する場合はスキップ）
+        return r2.upload_static_file(
+            file_path=default_icon_path,
+            object_key="defaults/default_user_icon.png",
+            content_type="image/png"
+        )
+    except Exception as e:
+        # R2アップロードに失敗した場合、ログを記録してNoneを返す
+        logger.error(f"Failed to upload default user icon to R2: {str(e)}")
+        return None
+
+
 # ===== Skin CRUD =====
 def get_or_create_default_skin(db: Session) -> models.Skin:
     """デフォルトスキンを取得または作成"""
+    from r2_storage import get_r2_storage
+    from pathlib import Path
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
     default_skin = db.query(models.Skin).filter(models.Skin.name == "Default Pin").first()
     if not default_skin:
+        # デフォルトスキン画像をR2にアップロード（既に存在する場合はスキップ）
+        r2 = get_r2_storage()
+        static_dir = Path(__file__).parent / "static"
+        default_icon_path = static_dir / "default_user_icon.png"
+        
+        try:
+            image_url = r2.upload_static_file(
+                file_path=default_icon_path,
+                object_key="defaults/default_pin.png",
+                content_type="image/png"
+            )
+        except Exception as e:
+            # R2アップロードに失敗した場合、ログを記録して例外を再発生
+            logger.error(f"Failed to upload default skin image to R2: {str(e)}")
+            raise RuntimeError(f"Cannot initialize default skin without R2 storage: {str(e)}")
+        
         default_skin = models.Skin(
             name="Default Pin",
-            image_url="https://via.placeholder.com/50",
+            image_url=image_url,
             price=0
         )
         db.add(default_skin)

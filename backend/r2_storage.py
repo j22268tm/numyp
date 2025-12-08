@@ -90,6 +90,58 @@ class R2Storage:
         except ClientError as e:
             raise Exception(f"Failed to upload file to R2: {str(e)}")
     
+    def upload_static_file(
+        self,
+        file_path: Path,
+        object_key: str,
+        content_type: Optional[str] = None,
+        public: bool = True
+    ) -> str:
+        """
+        静的ファイルをR2にアップロードする（既に存在する場合はスキップ）
+        
+        Args:
+            file_path: アップロードするファイルのローカルパス
+            object_key: R2内のオブジェクトキー（例: "defaults/user_icon.png"）
+            content_type: ファイルのMIMEタイプ
+            public: 公開アクセスを許可するかどうか
+        
+        Returns:
+            ファイルの公開URL
+        """
+        try:
+            # 既にファイルが存在するかチェック
+            try:
+                self.s3_client.head_object(
+                    Bucket=self.bucket_name,
+                    Key=object_key
+                )
+                # ファイルが存在する場合、URLを返す
+                return self._generate_public_url(object_key)
+            except ClientError as e:
+                if e.response['Error']['Code'] != '404':
+                    raise
+            
+            # ファイルをアップロード
+            extra_args = {}
+            if content_type:
+                extra_args['ContentType'] = content_type
+            if public:
+                extra_args['ACL'] = 'public-read'
+            
+            with open(file_path, 'rb') as f:
+                self.s3_client.upload_fileobj(
+                    f,
+                    self.bucket_name,
+                    object_key,
+                    ExtraArgs=extra_args
+                )
+            
+            return self._generate_public_url(object_key)
+            
+        except ClientError as e:
+            raise Exception(f"Failed to upload static file to R2: {str(e)}")
+    
     def delete_file(self, file_url: str) -> bool:
         """
         R2からファイルを削除する
@@ -185,7 +237,7 @@ class R2Storage:
             
             return None
             
-        except Exception:
+        except (ValueError, IndexError, AttributeError):
             return None
 
 
