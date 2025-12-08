@@ -67,7 +67,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 # Spots
 @app.get("/spots", response_model=List[schemas.SpotResponse])
-def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: Optional[float] = None):
+def get_spots(
+    _lat: Optional[float] = None,
+    _lng: Optional[float] = None,
+    _radius: Optional[float] = None,
+):
     """
     Map表示用 スポット一覧を返す あえて情報量は少なめにしてます
     """
@@ -78,51 +82,70 @@ def get_spots(lat: Optional[float] = None, lng: Optional[float] = None, radius: 
                 id=UUID("00000000-0000-0000-0000-000000000101"),
                 created_at=datetime.now(),
                 location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
-                content=schemas.ContentInfo(title="ハチ公前", description=None, image_url="https://via.placeholder.com/50"),
-                status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-                author=schemas.AuthorInfo(id=UUID("00000000-0000-0000-0000-000000000099"), username="admin"),
-                skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
-            )
-        ]
-    
-        lightweight_spots = []
-        for spot in fake_spots_db:
-            spot_lite = spot.model_copy(update={
-                "content": spot.content.model_copy(update={"description": None}) 
-            })
-            lightweight_spots.append(spot_lite)
-            
-        return lightweight_spots
-    
-    
-    @app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
-    def get_spot_detail(spot_id: UUID):
-        """
-        詳細表示用 特定のスポットの全情報を返す。
-        ピンをタップした後に呼ばれるAPI。
-        """
-        # dummy data
-        if spot_id == UUID("00000000-0000-0000-0000-000000000101") and not fake_spots_db:
-            return schemas.SpotResponse(
-                id=UUID("00000000-0000-0000-0000-000000000101"),
-                created_at=datetime.now(),
-                location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
                 content=schemas.ContentInfo(
-                    title="ハチ公前", 
-                    description="ここは詳細画面なので、長文の説明や高解像度の画像URLが含まれます。", 
-                    image_url="https://via.placeholder.com/300"
+                    title="ハチ公前",
+                    description=None,
+                    image_url="https://via.placeholder.com/50",
                 ),
                 status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
-                author=schemas.AuthorInfo(id=UUID("00000000-0000-0000-0000-000000000099"), username="admin"),
-                skin=schemas.SkinInfo(id=UUID("00000000-0000-0000-0000-000000000001"), name="Default Pin", image_url="https://via.placeholder.com/50")
+                author=schemas.AuthorInfo(
+                    id=UUID("00000000-0000-0000-0000-000000000099"),
+                    username="admin",
+                ),
+                skin=schemas.SkinInfo(
+                    id=UUID("00000000-0000-0000-0000-000000000001"),
+                    name="Default Pin",
+                    image_url="https://via.placeholder.com/50",
+                ),
             )
-    
-        # from memory DB
-        found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
-        if not found_spot:
-            raise HTTPException(status_code=404, detail="Spot not found")
-        
-        return found_spot
+        ]
+
+    # メモリ DB から取得したスポットを軽量化して返す
+    lightweight_spots: List[schemas.SpotResponse] = []
+    for spot in fake_spots_db:
+        spot_lite = spot.model_copy(
+            update={"content": spot.content.model_copy(update={"description": None})}
+        )
+        lightweight_spots.append(spot_lite)
+
+    return lightweight_spots
+
+
+@app.get("/spots/{spot_id}", response_model=schemas.SpotResponse)
+def get_spot_detail(spot_id: UUID):
+    """
+    詳細表示用 特定のスポットの全情報を返す。
+    ピンをタップした後に呼ばれるAPI。
+    """
+    # dummy data
+    if spot_id == UUID("00000000-0000-0000-0000-000000000101") and not fake_spots_db:
+        return schemas.SpotResponse(
+            id=UUID("00000000-0000-0000-0000-000000000101"),
+            created_at=datetime.now(),
+            location=schemas.LocationInfo(lat=35.6895, lng=139.6917),
+            content=schemas.ContentInfo(
+                title="ハチ公前",
+                description="ここは詳細画面なので、長文の説明や高解像度の画像URLが含まれます。",
+                image_url="https://via.placeholder.com/300",
+            ),
+            status=schemas.SpotStatus(crowd_level=schemas.CrowdLevel.HIGH, rating=3),
+            author=schemas.AuthorInfo(
+                id=UUID("00000000-0000-0000-0000-000000000099"),
+                username="admin",
+            ),
+            skin=schemas.SkinInfo(
+                id=UUID("00000000-0000-0000-0000-000000000001"),
+                name="Default Pin",
+                image_url="https://via.placeholder.com/50",
+            ),
+        )
+
+    # from memory DB
+    found_spot = next((s for s in fake_spots_db if s.id == spot_id), None)
+    if not found_spot:
+        raise HTTPException(status_code=404, detail="Spot not found")
+
+    return found_spot
 
 @app.post("/spots", response_model=schemas.SpotResponse)
 def create_spot(
