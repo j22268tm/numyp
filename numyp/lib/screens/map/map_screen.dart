@@ -8,9 +8,12 @@ import '../../config/constants.dart';
 import '../../config/theme.dart';
 import '../../models/spot.dart';
 import '../../providers/spot_providers.dart';
+import '../../providers/auth_provider.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/spot_detail_card.dart';
 import '../../widgets/spot_preview_card.dart';
+import '../mypage/mypage_screen.dart';
+import '../pin/pin_list_screen.dart';
 
 /// メイン地図画面
 /// APIから取得したスポットを表示し、選択できる
@@ -51,154 +54,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final spotsAsync = ref.watch(spotsProvider);
-    final markers = ref.watch(markerProvider);
-    final selectedSpot = ref.watch(selectedSpotProvider);
+    final Widget body;
+
+    switch (_currentIndex) {
+      case 0:
+        body = _buildMapView(context);
+        break;
+      case 1:
+        body = const PinListScreen();
+        break;
+      default:
+        body = const MyPageScreen();
+        break;
+    }
 
     return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            mapType: MapType.hybrid,
-            initialCameraPosition: _initialCameraPosition,
-            onMapCreated: (GoogleMapController controller) {
-              _controller.complete(controller);
-            },
-            cloudMapId: null,
-            zoomControlsEnabled: false,
-            mapToolbarEnabled: false,
-            myLocationButtonEnabled: false,
-            markers: markers,
-          ),
-
-          // 上部ステータスバー
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 16,
-            right: 16,
-            child: GlassCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  _buildCoinSection(),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text(
-                          'numyp',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          '今日のスポットを探索しよう',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _buildIconBadge(),
-                ],
-              ),
-            ),
-          ),
-
-          // ローディングやエラーの表示
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 90,
-            left: 16,
-            right: 16,
-            child: spotsAsync.when(
-              data: (_) => const SizedBox.shrink(),
-              loading: () => const _StatusBubble(
-                icon: Icons.cloud_download,
-                text: 'スポットを読み込み中...',
-              ),
-              error: (error, _) => _StatusBubble(
-                icon: Icons.error_outline,
-                text: '取得に失敗しました。リトライ',
-                onTap: () => ref.refresh(spotsProvider),
-              ),
-            ),
-          ),
-
-          // 下部のスポットプレビュー
-          if (spotsAsync.hasValue && spotsAsync.value!.isNotEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 120,
-              child: SizedBox(
-                height: 200,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemBuilder: (context, index) {
-                    final spot = spotsAsync.value![index];
-                    return SpotPreviewCard(
-                      spot: spot,
-                      onTap: () {
-                        _moveCamera(spot.location);
-                        ref.read(selectedSpotProvider.notifier).state = spot;
-                      },
-                    );
-                  },
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemCount: spotsAsync.value!.length,
-                ),
-              ),
-            ),
-
-          // 詳細カード
-          if (selectedSpot != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 20,
-              child: SpotDetailCard(
-                spot: selectedSpot,
-                onClose: () =>
-                    ref.read(selectedSpotProvider.notifier).state = null,
-              ),
-            ),
-
-          // 現在地 / リフレッシュボタン
-          Positioned(
-            bottom: 220,
-            right: 16,
-            child: Column(
-              children: [
-                FloatingActionButton(
-                  heroTag: 'refresh',
-                  backgroundColor: AppColors.cardSurface.withOpacity(0.85),
-                  onPressed: () => ref.refresh(spotsProvider),
-                  child: const Icon(Icons.refresh, color: AppColors.magicGold),
-                ),
-                const SizedBox(height: 12),
-                FloatingActionButton(
-                  heroTag: 'location',
-                  backgroundColor: AppColors.cardSurface.withOpacity(0.85),
-                  onPressed: _goToCurrentLocation,
-                  child: const Icon(
-                    Icons.my_location,
-                    color: AppColors.magicGold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body: body,
 
       // 下部ナビゲーションバー
       bottomNavigationBar: BottomNavigationBar(
@@ -215,17 +86,165 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         elevation: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'map'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_bag),
-            label: 'shop',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'pins'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'mypage'),
         ],
       ),
     );
   }
 
-  Widget _buildCoinSection() {
+  Widget _buildMapView(BuildContext context) {
+    final spotsAsync = ref.watch(spotsProvider);
+    final markers = ref.watch(markerProvider);
+    final selectedSpot = ref.watch(selectedSpotProvider);
+
+    final user = ref.watch(authProvider).user;
+
+    return Stack(
+      children: [
+        GoogleMap(
+          mapType: MapType.hybrid,
+          initialCameraPosition: _initialCameraPosition,
+          onMapCreated: (GoogleMapController controller) {
+            _controller.complete(controller);
+          },
+          cloudMapId: null,
+          zoomControlsEnabled: false,
+          mapToolbarEnabled: false,
+          myLocationButtonEnabled: false,
+          markers: markers,
+        ),
+
+        // 上部ステータスバー
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 16,
+          left: 16,
+          right: 16,
+          child: GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                _buildCoinSection(user?.coins ?? 0),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Text(
+                        'numyp',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '今日のスポットを探索しよう',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildIconBadge(user?.iconUrl),
+              ],
+            ),
+          ),
+        ),
+
+        // ローディングやエラーの表示
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 90,
+          left: 16,
+          right: 16,
+          child: spotsAsync.when(
+            data: (_) => const SizedBox.shrink(),
+            loading: () => const _StatusBubble(
+              icon: Icons.cloud_download,
+              text: 'スポットを読み込み中...',
+            ),
+            error: (error, _) => _StatusBubble(
+              icon: Icons.error_outline,
+              text: '取得に失敗しました。リトライ',
+              onTap: () => ref.refresh(spotsProvider),
+            ),
+          ),
+        ),
+
+        // 下部のスポットプレビュー
+        if (spotsAsync.hasValue && spotsAsync.value!.isNotEmpty)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 120,
+            child: SizedBox(
+              height: 200,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (context, index) {
+                  final spot = spotsAsync.value![index];
+                  return SpotPreviewCard(
+                    spot: spot,
+                    onTap: () {
+                      _moveCamera(spot.location);
+                      ref.read(selectedSpotProvider.notifier).state = spot;
+                    },
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemCount: spotsAsync.value!.length,
+              ),
+            ),
+          ),
+
+        // 詳細カード
+        if (selectedSpot != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 20,
+            child: SpotDetailCard(
+              spot: selectedSpot,
+              onClose: () => ref.read(selectedSpotProvider.notifier).state = null,
+            ),
+          ),
+
+        // 現在地 / リフレッシュボタン
+        Positioned(
+          bottom: 220,
+          right: 16,
+          child: Column(
+            children: [
+              FloatingActionButton(
+                heroTag: 'refresh',
+                backgroundColor: AppColors.cardSurface.withOpacity(0.85),
+                onPressed: () => ref.refresh(spotsProvider),
+                child: const Icon(Icons.refresh, color: AppColors.magicGold),
+              ),
+              const SizedBox(height: 12),
+              FloatingActionButton(
+                heroTag: 'location',
+                backgroundColor: AppColors.cardSurface.withOpacity(0.85),
+                onPressed: _goToCurrentLocation,
+                child: const Icon(
+                  Icons.my_location,
+                  color: AppColors.magicGold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCoinSection(int coins) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -234,12 +253,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         border: Border.all(color: Colors.white12),
       ),
       child: Row(
-        children: const [
-          Icon(Icons.monetization_on, color: AppColors.magicGold, size: 22),
-          SizedBox(width: 6),
+        children: [
+          const Icon(Icons.monetization_on, color: AppColors.magicGold, size: 22),
+          const SizedBox(width: 6),
           Text(
-            '1,234',
-            style: TextStyle(
+            coins.toString(),
+            style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
@@ -249,7 +268,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildIconBadge() {
+  Widget _buildIconBadge(String? iconUrl) {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
@@ -257,10 +276,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white10),
       ),
-      child: const CircleAvatar(
+      child: CircleAvatar(
         radius: 18,
         backgroundColor: AppColors.fantasyPurple,
-        child: Icon(Icons.person, color: Colors.white),
+        backgroundImage:
+            iconUrl != null ? NetworkImage(iconUrl) : null,
+        child:
+            iconUrl == null ? const Icon(Icons.person, color: Colors.white) : null,
       ),
     );
   }

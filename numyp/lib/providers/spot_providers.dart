@@ -2,9 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/spot.dart';
-import '../services/api_client.dart';
-
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+import 'api_client_provider.dart';
 
 final spotsProvider = FutureProvider<List<Spot>>((ref) async {
   final client = ref.watch(apiClientProvider);
