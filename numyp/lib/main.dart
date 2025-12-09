@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'config/constants.dart';
 import 'config/theme.dart';
 import 'screens/map/map_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppConstants.loadEnv();
   runApp(const ProviderScope(child: MyApp()));
 }
 
