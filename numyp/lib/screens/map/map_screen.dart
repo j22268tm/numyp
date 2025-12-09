@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -25,9 +23,7 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  final Completer<GoogleMapController> _controller =
-      Completer<GoogleMapController>();
-
+  GoogleMapController? _mapController;
   late final CameraPosition _initialCameraPosition;
 
   int _currentIndex = 0;
@@ -46,9 +42,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   void dispose() {
-    if (_controller.isCompleted) {
-      _controller.future.then((controller) => controller.dispose());
-    }
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -86,7 +80,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         elevation: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'map'),
-          BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'pins'),
+          BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'spots'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'mypage'),
         ],
       ),
@@ -94,7 +88,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Widget _buildMapView(BuildContext context) {
-    final spotsAsync = ref.watch(spotsProvider);
+    final spotsAsync = ref.watch(spotsControllerProvider);
     final markers = ref.watch(markerProvider);
     final selectedSpot = ref.watch(selectedSpotProvider);
 
@@ -106,7 +100,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           mapType: MapType.hybrid,
           initialCameraPosition: _initialCameraPosition,
           onMapCreated: (GoogleMapController controller) {
-            _controller.complete(controller);
+            _mapController?.dispose();
+            _mapController = controller;
           },
           cloudMapId: null,
           zoomControlsEnabled: false,
@@ -171,7 +166,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             error: (error, _) => _StatusBubble(
               icon: Icons.error_outline,
               text: '取得に失敗しました。リトライ',
-              onTap: () => ref.refresh(spotsProvider),
+              onTap: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
             ),
           ),
         ),
@@ -224,7 +219,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               FloatingActionButton(
                 heroTag: 'refresh',
                 backgroundColor: AppColors.cardSurface.withOpacity(0.85),
-                onPressed: () => ref.refresh(spotsProvider),
+                onPressed: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
                 child: const Icon(Icons.refresh, color: AppColors.magicGold),
               ),
               const SizedBox(height: 12),
@@ -289,16 +284,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   /// 現在地へ移動（仮実装）
   Future<void> _goToCurrentLocation() async {
-    if (!_controller.isCompleted) return;
-    final GoogleMapController controller = await _controller.future;
+    final controller = _mapController;
+    if (controller == null) return;
     await controller.animateCamera(
       CameraUpdate.newCameraPosition(_initialCameraPosition),
     );
   }
 
   Future<void> _moveCamera(LatLng position) async {
-    if (!_controller.isCompleted) return;
-    final GoogleMapController controller = await _controller.future;
+    final controller = _mapController;
+    if (controller == null) return;
     await controller.animateCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(target: position, zoom: AppConstants.initialZoom + 1),

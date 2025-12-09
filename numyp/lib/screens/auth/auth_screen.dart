@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,16 +13,28 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends ConsumerState<AuthScreen> {
+class _AuthScreenState extends ConsumerState<AuthScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
   bool _isLogin = true;
+  late final AnimationController _bgController;
+
+  @override
+  void initState() {
+    super.initState();
+    _bgController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+  }
 
   @override
   void dispose() {
     _passwordController.dispose();
     _usernameController.dispose();
+    _bgController.dispose();
     super.dispose();
   }
 
@@ -37,53 +51,86 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.midnightBackground, AppColors.fantasyPurple],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'numyp',
-                    style: TextStyle(
-                      fontSize: 36,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+      body: AnimatedBuilder(
+        animation: _bgController,
+        builder: (context, _) {
+          final t = _bgController.value * 2 * pi;
+          final alignStart = Alignment(
+            -0.8 + 0.6 * sin(t),
+            -1.0 + 0.5 * cos(t * 0.8),
+          );
+          final alignEnd = Alignment(
+            0.8 * cos(t * 0.9),
+            1.0 + 0.4 * sin(t * 1.1),
+          );
+
+          const auroraBase = Color(0xFF0B1026);
+          final gradientColors = [
+            auroraBase,
+            const Color(0xFF12395F),
+            const Color(0xFF6A5AF9),
+            const Color(0xFF1DD4A4),
+            const Color(0xFFFF7FCF).withAlpha(200),
+          ];
+
+          return Stack(
+            children: [
+              // Animated gradient background
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: gradientColors,
+                    begin: alignStart,
+                    end: alignEnd,
+                    stops: const [0.0, 0.3, 0.55, 0.78, 1.0],
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _isLogin ? 'ユーザー名でログイン' : '新規登録してはじめる',
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 32),
-                  _buildForm(authState.isLoading),
-                  const SizedBox(height: 24),
-                  TextButton(
-                    onPressed: authState.isLoading
-                        ? null
-                        : () => setState(() => _isLogin = !_isLogin),
-                    child: Text(
-                      _isLogin
-                          ? 'アカウントをお持ちでない方はこちら'
-                          : 'すでにアカウントをお持ちの方',
-                      style: const TextStyle(color: AppColors.magicGold),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
+              // Content
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+                child: SafeArea(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'numyp',
+                            style: TextStyle(
+                              fontSize: 36,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isLogin ? 'ユーザー名でログイン' : '新規登録してはじめる',
+                            style: const TextStyle(color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: 32),
+                          _buildForm(authState.isLoading),
+                          const SizedBox(height: 24),
+                          TextButton(
+                            onPressed: authState.isLoading
+                                ? null
+                                : () => setState(() => _isLogin = !_isLogin),
+                            child: Text(
+                              _isLogin
+                                  ? 'アカウントをお持ちでない方はこちら'
+                                  : 'すでにアカウントをお持ちの方',
+                              style: const TextStyle(color: AppColors.magicGold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -91,7 +138,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   Widget _buildForm(bool isLoading) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.white.withOpacity(0.08),
+      color: Colors.white.withAlpha((0.08 * 255).round()),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(

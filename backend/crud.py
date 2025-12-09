@@ -264,3 +264,49 @@ def create_spot(db: Session, spot: schemas.SpotCreate, user_id: UUID, image_url:
         raise
 
     return db_spot
+
+
+def update_spot(
+    db: Session,
+    spot_id: UUID,
+    user_id: UUID,
+    spot_update: schemas.SpotUpdate,
+    image_url: Optional[str] = None,
+) -> models.Spot:
+    """スポットを更新（作成者のみ許可）"""
+    db_spot = get_spot_by_id(db, spot_id)
+    if db_spot is None:
+        raise ValueError("spot not found")
+    if db_spot.author_id != user_id:
+        raise PermissionError("forbidden")
+
+    if spot_update.lat is not None:
+        db_spot.latitude = spot_update.lat
+    if spot_update.lng is not None:
+        db_spot.longitude = spot_update.lng
+    if spot_update.title is not None:
+        db_spot.title = spot_update.title
+    if spot_update.description is not None:
+        db_spot.description = spot_update.description
+    if spot_update.crowd_level is not None:
+        db_spot.crowd_level = spot_update.crowd_level
+    if spot_update.rating is not None:
+        db_spot.rating = spot_update.rating
+    if image_url is not None:
+        db_spot.image_url = image_url
+
+    db.commit()
+    db.refresh(db_spot)
+    return db_spot
+
+
+def delete_spot(db: Session, spot_id: UUID, user_id: UUID) -> None:
+    """スポットを削除（作成者のみ許可）"""
+    db_spot = get_spot_by_id(db, spot_id)
+    if db_spot is None:
+        raise ValueError("spot not found")
+    if db_spot.author_id != user_id:
+        raise PermissionError("forbidden")
+
+    db.delete(db_spot)
+    db.commit()

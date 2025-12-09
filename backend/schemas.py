@@ -51,6 +51,17 @@ class SpotCreate(BaseModel):
     crowd_level: Optional[CrowdLevel] = CrowdLevel.MEDIUM
     rating: Optional[int] = 3
 
+
+class SpotUpdate(BaseModel):
+    """スポット更新用モデル（部分更新も許容）"""
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=50)
+    description: Optional[str] = Field(None, max_length=200)
+    image_base64: Optional[str] = Field(None, description="Base64 encoded image string")
+    crowd_level: Optional[CrowdLevel] = None
+    rating: Optional[int] = Field(None, ge=1, le=5, description="1 to 5 stars")
+
 class UserCreate(BaseModel):
     username: str
     password: str

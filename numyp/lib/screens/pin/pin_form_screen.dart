@@ -1,45 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../config/constants.dart';
 import '../../config/theme.dart';
-import '../../models/pin.dart';
-import '../../providers/pin_provider.dart';
+import '../../models/spot.dart';
+import '../../providers/spot_providers.dart';
 
-class PinFormScreen extends ConsumerStatefulWidget {
-  const PinFormScreen({super.key, this.pin});
+class SpotFormScreen extends ConsumerStatefulWidget {
+  const SpotFormScreen({super.key, this.spot});
 
-  final Pin? pin;
+  final Spot? spot;
 
   @override
-  ConsumerState<PinFormScreen> createState() => _PinFormScreenState();
+  ConsumerState<SpotFormScreen> createState() => _SpotFormScreenState();
 }
 
-class _PinFormScreenState extends ConsumerState<PinFormScreen> {
+class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _latController;
+  late final TextEditingController _lngController;
+  late CrowdLevel _crowdLevel;
+  late double _rating;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.pin?.title ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.pin?.description ?? '');
+    _titleController = TextEditingController(text: widget.spot?.content.title ?? '');
+    _descriptionController = TextEditingController(text: widget.spot?.content.description ?? '');
+    _latController = TextEditingController(
+      text: (widget.spot?.location.latitude ?? AppConstants.initialLatitude).toString(),
+    );
+    _lngController = TextEditingController(
+      text: (widget.spot?.location.longitude ?? AppConstants.initialLongitude).toString(),
+    );
+    _crowdLevel = widget.spot?.status.crowdLevel ?? CrowdLevel.medium;
+    _rating = (widget.spot?.status.rating ?? 3).toDouble();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _latController.dispose();
+    _lngController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.pin != null;
+    final isEditing = widget.spot != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'ピンを編集' : '新規ピン作成'),
+        title: Text(isEditing ? 'スポットを編集' : '新規スポット作成'),
         backgroundColor: AppColors.midnightBackground,
         foregroundColor: Colors.white,
       ),
@@ -70,19 +85,99 @@ class _PinFormScreenState extends ConsumerState<PinFormScreen> {
                   labelText: '説明 (任意)',
                   prefixIcon: Icon(Icons.notes_outlined),
                 ),
-                maxLines: 4,
+                maxLines: 3,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latController,
+                      decoration: const InputDecoration(
+                        labelText: '緯度',
+                        prefixIcon: Icon(Icons.my_location),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      validator: (value) => value == null || double.tryParse(value) == null ? '緯度を入力してください' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _lngController,
+                      decoration: const InputDecoration(
+                        labelText: '経度',
+                        prefixIcon: Icon(Icons.place_outlined),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      validator: (value) => value == null || double.tryParse(value) == null ? '経度を入力してください' : null,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<CrowdLevel>(
+                      value: _crowdLevel,
+                      decoration: const InputDecoration(
+                        labelText: '混雑度',
+                        prefixIcon: Icon(Icons.emoji_people),
+                      ),
+                      items: CrowdLevel.values
+                          .map(
+                            (level) => DropdownMenuItem(
+                              value: level,
+                              child: Text(level.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _crowdLevel = value);
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('評価', style: TextStyle(color: AppColors.textSecondary)),
+                        Slider(
+                          value: _rating,
+                          onChanged: (value) => setState(() => _rating = value),
+                          min: 1,
+                          max: 5,
+                          divisions: 4,
+                          activeColor: AppColors.magicGold,
+                          inactiveColor: Colors.white24,
+                          label: _rating.toStringAsFixed(0),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _save,
+                  onPressed: _isSaving ? null : _save,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.magicGold,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  icon: const Icon(Icons.save_outlined),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                        )
+                      : const Icon(Icons.save_outlined),
                   label: Text(isEditing ? '更新する' : '保存する'),
                 ),
               ),
@@ -93,26 +188,47 @@ class _PinFormScreenState extends ConsumerState<PinFormScreen> {
     );
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final notifier = ref.read(pinProvider.notifier);
-    if (widget.pin == null) {
-      notifier.addPin(
-        title: _titleController.text,
-        description: _descriptionController.text.isEmpty
-            ? null
-            : _descriptionController.text,
-      );
-    } else {
-      notifier.updatePin(
-        widget.pin!.copyWith(
+    final lat = double.tryParse(_latController.text);
+    final lng = double.tryParse(_lngController.text);
+    if (lat == null || lng == null) return;
+
+    setState(() => _isSaving = true);
+    final notifier = ref.read(spotsControllerProvider.notifier);
+    try {
+      if (widget.spot == null) {
+        await notifier.createSpot(
+          lat: lat,
+          lng: lng,
           title: _titleController.text,
-          description: _descriptionController.text.isEmpty
-              ? null
-              : _descriptionController.text,
-        ),
+          description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+          crowdLevel: _crowdLevel,
+          rating: _rating.round(),
+        );
+      } else {
+        await notifier.updateSpot(
+          id: widget.spot!.id,
+          lat: lat,
+          lng: lng,
+          title: _titleController.text,
+          description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+          crowdLevel: _crowdLevel,
+          rating: _rating.round(),
+        );
+      }
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.spot == null ? 'スポットを追加しました' : 'スポットを更新しました')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存に失敗しました: $e')),
       );
     }
-    Navigator.of(context).pop();
   }
 }

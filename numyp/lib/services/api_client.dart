@@ -60,4 +60,71 @@ class ApiClient {
     );
     return AppUser.fromApi(response.data as Map<String, dynamic>, token);
   }
+
+  Future<Spot> createSpot({
+    required String token,
+    required double lat,
+    required double lng,
+    required String title,
+    String? description,
+    CrowdLevel crowdLevel = CrowdLevel.medium,
+    int rating = 3,
+    String? imageBase64,
+  }) async {
+    final response = await _dio.post(
+      '/spots',
+      data: {
+        'lat': lat,
+        'lng': lng,
+        'title': title,
+        'description': description,
+        'crowd_level': crowdLevel.apiValue,
+        'rating': rating,
+        'image_base64': imageBase64,
+      },
+      options: _authOptions(token),
+    );
+
+    return Spot.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<Spot> updateSpot({
+    required String token,
+    required String id,
+    double? lat,
+    double? lng,
+    String? title,
+    String? description,
+    CrowdLevel? crowdLevel,
+    int? rating,
+    String? imageBase64,
+  }) async {
+    final payload = <String, dynamic>{
+      'lat': lat,
+      'lng': lng,
+      'title': title,
+      'description': description,
+      'crowd_level': crowdLevel?.apiValue,
+      'rating': rating,
+      'image_base64': imageBase64,
+    }..removeWhere((_, value) => value == null);
+
+    final response = await _dio.put(
+      '/spots/$id',
+      data: payload,
+      options: _authOptions(token),
+    );
+
+    return Spot.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<void> deleteSpot({
+    required String token,
+    required String id,
+  }) async {
+    await _dio.delete(
+      '/spots/$id',
+      options: _authOptions(token),
+    );
+  }
 }

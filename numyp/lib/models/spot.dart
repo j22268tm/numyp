@@ -91,6 +91,18 @@ extension CrowdLevelExtension on CrowdLevel {
         return CrowdLevel.medium;
     }
   }
+
+  String get apiValue {
+    switch (this) {
+      case CrowdLevel.low:
+        return 'low';
+      case CrowdLevel.high:
+        return 'high';
+      case CrowdLevel.medium:
+      default:
+        return 'medium';
+    }
+  }
 }
 
 class AuthorInfo {
