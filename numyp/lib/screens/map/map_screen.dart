@@ -33,9 +33,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void initState() {
     super.initState();
     _initialCameraPosition = const CameraPosition(
-      target: LatLng(AppConstants.initialLatitude, AppConstants.initialLongitude),
+      target: LatLng(
+        AppConstants.initialLatitude,
+        AppConstants.initialLongitude,
+      ),
       zoom: AppConstants.initialZoom,
     );
+  }
+
+  @override
+  void dispose() {
+    if (_controller.isCompleted) {
+      _controller.future.then((controller) => controller.dispose());
+    }
+    super.dispose();
   }
 
   @override
@@ -66,8 +77,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             left: 16,
             right: 16,
             child: GlassCard(
-              height: 64,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   _buildCoinSection(),
@@ -76,19 +86,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Text('numyp',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            )),
+                        Text(
+                          'numyp',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
                         SizedBox(height: 2),
-                        Text('今日のスポットを探索しよう',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            )),
+                        Text(
+                          '今日のスポットを探索しよう',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -174,8 +189,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   heroTag: 'location',
                   backgroundColor: AppColors.cardSurface.withOpacity(0.85),
                   onPressed: _goToCurrentLocation,
-                  child: const Icon(Icons.my_location,
-                      color: AppColors.magicGold),
+                  child: const Icon(
+                    Icons.my_location,
+                    color: AppColors.magicGold,
+                  ),
                 ),
               ],
             ),
@@ -291,7 +308,7 @@ class _StatusBubble extends StatelessWidget {
                 text,
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
-            )
+            ),
           ],
         ),
       ),
