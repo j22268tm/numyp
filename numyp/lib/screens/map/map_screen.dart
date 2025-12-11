@@ -32,14 +32,13 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           // 1層目: Google Map
           GoogleMap(
-            mapType: MapType.hybrid,
+            mapType: MapType.normal,
             initialCameraPosition: _kGooglePlex,
             onMapCreated: (GoogleMapController controller) {
               _controller.complete(controller);
             },
             // Google Map ID を適用（カスタムスタイル用）
-            // TODO: 将来的に env.json から読み込む
-            cloudMapId: null,
+            cloudMapId: '3594a289df4f7f14d77cb4e2',
             // 不要なUIを非表示
             zoomControlsEnabled: false,
             mapToolbarEnabled: false,
