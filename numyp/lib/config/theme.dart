@@ -1,115 +1,143 @@
 import 'package:flutter/material.dart';
 
-/// アプリ全体で使用する色定義
+/// アプリ全体で使用する色定義（ライト / ダーク対応）
 class AppColors {
+  const AppColors({
+    required this.midnightBackground,
+    required this.cardSurface,
+    required this.magicGold,
+    required this.deepGold,
+    required this.lanternOrange,
+    required this.fantasyPurple,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.glassWhite,
+  });
+
   // --- ベースカラー (夜空・背景) ---
-  // 完全な黒(#000000)ではなく、ほんの少し紫を含んだ「深い夜空色」にすることで
-  // 画面に奥行きとリッチな雰囲気を与えます。
-  static const Color midnightBackground = Color(0xFF0F0F16); // メイン背景
-  static const Color cardSurface = Color(0xFF1A1A24); // カードやダイアログの背景
+  final Color midnightBackground;
+  final Color cardSurface;
 
   // --- アクセントカラー (魔法・輝き) ---
-  // パレードの電飾や魔法の粉(Pixie Dust)をイメージしたゴールド
-  static const Color magicGold = Color(0xFFFFD700);
-  // 落ち着いた高級感を出すための深いゴールド（枠線などに使用）
-  static const Color deepGold = Color(0xFFC5A000);
+  final Color magicGold;
+  final Color deepGold;
 
   // --- サブカラー (温かみ・幻想) ---
-  // 夜の街灯やキャンドルをイメージした温かいオレンジ
-  static const Color lanternOrange = Color(0xFFFFA500);
-  // 魔法の世界観を強調するミステリアスな紫
-  static const Color fantasyPurple = Color(0xFF9D4EDD);
+  final Color lanternOrange;
+  final Color fantasyPurple;
 
   // --- テキストカラー ---
-  // 真っ白(#FFFFFF)だと暗い背景では目が痛くなるので、少し抑えた色にします
-  static const Color textPrimary = Color(0xFFF0F0F5); // メイン文字
-  static const Color textSecondary = Color(0xFFAAAAAA); // 補足文字
+  final Color textPrimary;
+  final Color textSecondary;
 
   // --- ガラスモーフィズム用 ---
-  // 地図の上に浮くUIのための、半透明の白
-  static const Color glassWhite = Color(0x1AFFFFFF); // 透明度10%
+  final Color glassWhite;
+
+  static const AppColors dark = AppColors(
+    midnightBackground: Color(0xFF0F0F16),
+    cardSurface: Color(0xFF1A1A24),
+    magicGold: Color(0xFFFFD700),
+    deepGold: Color(0xFFC5A000),
+    lanternOrange: Color(0xFFFFA500),
+    fantasyPurple: Color(0xFF9D4EDD),
+    textPrimary: Color(0xFFF0F0F5),
+    textSecondary: Color(0xFFAAAAAA),
+    glassWhite: Color(0x1AFFFFFF),
+  );
+
+  static const AppColors light = AppColors(
+    midnightBackground: Color(0xFFF7F5FF),
+    cardSurface: Colors.white,
+    magicGold: Color(0xFFFFD700),
+    deepGold: Color(0xFFC5A000),
+    lanternOrange: Color(0xFFFFA500),
+    fantasyPurple: Color(0xFF8A4AE3),
+    textPrimary: Color(0xFF1C1B1F),
+    textSecondary: Color(0xFF5E5E6D),
+    glassWhite: Color(0xB3FFFFFF),
+  );
+
+  static AppColors of(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark ? dark : light;
+  }
 }
 
 /// アプリ全体のテーマ設定
 class AppTheme {
-  static ThemeData get darkTheme {
+  static ThemeData get darkTheme => _buildTheme(AppColors.dark, Brightness.dark);
+  static ThemeData get lightTheme => _buildTheme(AppColors.light, Brightness.light);
+
+  static ThemeData _buildTheme(AppColors colors, Brightness brightness) {
+    final colorScheme = brightness == Brightness.dark
+        ? ColorScheme.dark(
+            primary: colors.magicGold,
+            onPrimary: Colors.black,
+            secondary: colors.fantasyPurple,
+            onSecondary: Colors.white,
+            surface: colors.cardSurface,
+            onSurface: colors.textPrimary,
+            error: const Color(0xFFCF6679),
+          )
+        : ColorScheme.light(
+            primary: colors.magicGold,
+            onPrimary: Colors.black,
+            secondary: colors.fantasyPurple,
+            onSecondary: Colors.white,
+            surface: colors.cardSurface,
+            onSurface: colors.textPrimary,
+            error: const Color(0xFFB3261E),
+          );
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-
-      // フォント設定
+      brightness: brightness,
       fontFamily: 'Noto Sans JP',
-
-      // 1. 全体の背景色
-      scaffoldBackgroundColor: AppColors.midnightBackground,
-
-      // 2. 色の役割分担 (ColorScheme)
-      colorScheme: const ColorScheme.dark(
-        // Primary: 最も重要な色（ボタン、アクティブなアイコン）
-        primary: AppColors.magicGold,
-        onPrimary: Colors.black, // Primaryの上の文字色
-        // Secondary: 補助的な色（FAB、スイッチなど）
-        secondary: AppColors.fantasyPurple,
-        onSecondary: Colors.white,
-
-        // Surface: カードやシートの背景色
-        surface: AppColors.cardSurface,
-        onSurface: AppColors.textPrimary,
-
-        // Error: エラー色（世界観を壊さないよう少し彩度を落とした赤）
-        error: Color(0xFFCF6679),
-      ),
-
-      // 3. アプリバーの設定
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.transparent, // 背景色なし（地図を透かすため）
+      scaffoldBackgroundColor: colors.midnightBackground,
+      colorScheme: colorScheme,
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
-          color: AppColors.magicGold,
+          color: colors.magicGold,
           fontSize: 20,
           fontWeight: FontWeight.bold,
           fontFamily: 'Noto Sans JP',
         ),
-        iconTheme: IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: colors.textPrimary),
       ),
-
-      // 4. ボトムナビゲーションバーの設定（下のメニュー）
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: AppColors.midnightBackground.withOpacity(
-          0.9,
-        ), // 少し透けさせる
-        selectedItemColor: AppColors.magicGold, // 選ばれているアイコン
-        unselectedItemColor: AppColors.textSecondary, // 選ばれていないアイコン
+        backgroundColor: colors.cardSurface.withOpacity(
+          brightness == Brightness.dark ? 0.9 : 0.95,
+        ),
+        selectedItemColor: colors.magicGold,
+        unselectedItemColor: colors.textSecondary,
         type: BottomNavigationBarType.fixed,
         showSelectedLabels: true,
         showUnselectedLabels: true,
         elevation: 0,
       ),
-
-      // 5. フローティングアクションボタン (右下の＋ボタンなど)
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.fantasyPurple, // 紫色のボタンで魔法っぽく
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colors.fantasyPurple,
         foregroundColor: Colors.white,
         elevation: 8,
       ),
-
-      // 6. カードのテーマ (ダイアログやリストアイテム)
       cardTheme: CardThemeData(
-        color: AppColors.cardSurface,
+        color: colors.cardSurface,
         elevation: 4,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16), // 角丸を強めにして優しい印象に
-          side: const BorderSide(color: Colors.white10, width: 1), // うっすら枠線
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: brightness == Brightness.dark ? Colors.white10 : Colors.black12,
+            width: 1,
+          ),
         ),
       ),
-
-      // 7. テキストテーマの微調整
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
-        bodyMedium: TextStyle(color: AppColors.textPrimary),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: colors.textPrimary),
+        bodyMedium: TextStyle(color: colors.textPrimary),
         titleLarge: TextStyle(
-          color: AppColors.magicGold,
+          color: colors.magicGold,
           fontWeight: FontWeight.bold,
         ),
       ),

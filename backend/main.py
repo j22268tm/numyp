@@ -68,6 +68,86 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
+def _upload_image_from_base64(image_base64: str, folder: str = "spots") -> str:
+    """
+    base64文字列から画像をアップロードし、公開URLを返す。
+    バリデーションエラーはHTTPExceptionで返却する。
+    """
+    # base64サイズ制限（約10MB相当）
+    max_base64_size = 14 * 1024 * 1024
+    if len(image_base64) > max_base64_size:
+        raise HTTPException(status_code=400, detail="Image data is too large")
+
+    try:
+        # base64文字列から画像データを抽出
+        # フォーマット: "data:image/jpeg;base64,/9j/4AAQ..." の場合
+        if "," in image_base64:
+            header, encoded = image_base64.split(",", 1)
+            # Content-Typeを抽出（例: "image/jpeg"）
+            content_type = header.split(":")[1].split(";")[0]
+        else:
+            encoded = image_base64
+            content_type = "image/jpeg"  # デフォルト
+
+        # base64デコード
+        image_data = base64.b64decode(encoded)
+
+        # ファイル拡張子を決定
+        ext_map = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+            "image/gif": ".gif"
+        }
+        extension = ext_map.get(content_type, ".jpg")
+
+        # R2にアップロード
+        r2_storage = get_r2_storage()
+        return r2_storage.upload_file(
+            file_data=BytesIO(image_data),
+            filename=f"spot_{uuid4()}{extension}",
+            content_type=content_type,
+            folder=folder
+        )
+    except (ValueError, base64.binascii.Error):
+        # base64フォーマット不正などクライアント側の問題
+        raise HTTPException(status_code=400, detail="Invalid image data") from None
+    except HTTPException:
+        # すでにHTTPExceptionに変換済みの場合はそのまま流す
+        raise
+    except Exception:
+        logger.exception("Failed to upload spot image")
+        raise HTTPException(status_code=500, detail="Failed to upload image") from None
+
+
+def _spot_to_response(spot: models.Spot, include_description: bool = True) -> schemas.SpotResponse:
+    """モデルからレスポンスモデルを生成"""
+    return schemas.SpotResponse(
+        id=spot.id,
+        created_at=spot.created_at,
+        location=schemas.LocationInfo(lat=spot.latitude, lng=spot.longitude),
+        content=schemas.ContentInfo(
+            title=spot.title,
+            description=spot.description if include_description else None,
+            image_url=spot.image_url,
+        ),
+        status=schemas.SpotStatus(
+            crowd_level=schemas.CrowdLevel(spot.crowd_level.value),
+            rating=spot.rating
+        ),
+        author=schemas.AuthorInfo(
+            id=spot.author.id,
+            username=spot.author.username,
+            icon_url=spot.author.icon_url
+        ),
+        skin=schemas.SkinInfo(
+            id=spot.skin.id,
+            name=spot.skin.name,
+            image_url=spot.skin.image_url
+        )
+    )
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """現在のユーザーを取得"""
     credentials_exception = HTTPException(
@@ -168,36 +248,8 @@ def get_spots(
     # データベースからスポットを取得
     db_spots = crud.get_spots(db, lat=lat, lng=lng, radius=radius)
     
-    # レスポンス形式に変換
-    spots_response = []
-    for spot in db_spots:
-        # 軽量化のため description は None にする
-        spots_response.append(schemas.SpotResponse(
-            id=spot.id,
-            created_at=spot.created_at,
-            location=schemas.LocationInfo(lat=spot.latitude, lng=spot.longitude),
-            content=schemas.ContentInfo(
-                title=spot.title,
-                description=None,  # 軽量化
-                image_url=spot.image_url,
-            ),
-            status=schemas.SpotStatus(
-                crowd_level=schemas.CrowdLevel(spot.crowd_level.value),
-                rating=spot.rating
-            ),
-            author=schemas.AuthorInfo(
-                id=spot.author.id,
-                username=spot.author.username,
-                icon_url=spot.author.icon_url
-            ),
-            skin=schemas.SkinInfo(
-                id=spot.skin.id,
-                name=spot.skin.name,
-                image_url=spot.skin.image_url
-            )
-        ))
-    
-    return spots_response
+    # レスポンス形式に変換（軽量化のため description は None にする）
+    return [_spot_to_response(spot, include_description=False) for spot in db_spots]
 
 
 @app.post("/upload/image")
@@ -265,31 +317,7 @@ def get_spot_detail(spot_id: UUID, db: Session = Depends(get_db)):
     if not spot:
         raise HTTPException(status_code=404, detail="Spot not found")
     
-    # レスポンス形式に変換
-    return schemas.SpotResponse(
-        id=spot.id,
-        created_at=spot.created_at,
-        location=schemas.LocationInfo(lat=spot.latitude, lng=spot.longitude),
-        content=schemas.ContentInfo(
-            title=spot.title,
-            description=spot.description,  # 詳細では description も含める
-            image_url=spot.image_url,
-        ),
-        status=schemas.SpotStatus(
-            crowd_level=schemas.CrowdLevel(spot.crowd_level.value),
-            rating=spot.rating
-        ),
-        author=schemas.AuthorInfo(
-            id=spot.author.id,
-            username=spot.author.username,
-            icon_url=spot.author.icon_url
-        ),
-        skin=schemas.SkinInfo(
-            id=spot.skin.id,
-            name=spot.skin.name,
-            image_url=spot.skin.image_url
-        )
-    )
+    return _spot_to_response(spot, include_description=True)
 
 @app.post("/spots", response_model=schemas.SpotResponse)
 def create_spot(
@@ -302,82 +330,58 @@ def create_spot(
     入力はフラット出力はネストされた構造にBackend側で変換して保存
     画像がbase64で送られた場合はR2にアップロードする
     """
-    image_url = None
-    
-    # 画像がbase64形式で送信された場合、R2にアップロード
-    if spot.image_base64:
-        # base64サイズ制限（約10MB相当）
-        max_base64_size = 14 * 1024 * 1024  # 10MBをbase64すると約4/3倍
-        if len(spot.image_base64) > max_base64_size:
-            raise HTTPException(status_code=400, detail="Image data is too large")
-
-        try:
-            # base64文字列から画像データを抽出
-            # フォーマット: "data:image/jpeg;base64,/9j/4AAQ..." の場合
-            if "," in spot.image_base64:
-                header, encoded = spot.image_base64.split(",", 1)
-                # Content-Typeを抽出（例: "image/jpeg"）
-                content_type = header.split(":")[1].split(";")[0]
-            else:
-                encoded = spot.image_base64
-                content_type = "image/jpeg"  # デフォルト
-            
-            # base64デコード
-            image_data = base64.b64decode(encoded)
-            
-            # ファイル拡張子を決定
-            ext_map = {
-                "image/jpeg": ".jpg",
-                "image/png": ".png",
-                "image/webp": ".webp",
-                "image/gif": ".gif"
-            }
-            extension = ext_map.get(content_type, ".jpg")
-            
-            # R2にアップロード
-            r2_storage = get_r2_storage()
-            image_url = r2_storage.upload_file(
-                file_data=BytesIO(image_data),
-                filename=f"spot_{uuid4()}{extension}",
-                content_type=content_type,
-                folder="spots"
-            )
-            
-        except (ValueError, base64.binascii.Error):
-            # base64フォーマット不正などクライアント側の問題
-            raise HTTPException(status_code=400, detail="Invalid image data") from None
-        except Exception:
-            logger.exception("Failed to upload spot image")
-            raise HTTPException(status_code=500, detail="Failed to upload image") from None
+    image_url = _upload_image_from_base64(spot.image_base64, folder="spots") if spot.image_base64 else None
     
     # データベースにスポットを作成（image_urlを含む）
     new_spot = crud.create_spot(db, spot, current_user.id, image_url=image_url)
     
-    # レスポンス形式に変換
-    return schemas.SpotResponse(
-        id=new_spot.id,
-        created_at=new_spot.created_at,
-        location=schemas.LocationInfo(lat=new_spot.latitude, lng=new_spot.longitude),
-        content=schemas.ContentInfo(
-            title=new_spot.title,
-            description=new_spot.description,
-            image_url=new_spot.image_url,
-        ),
-        status=schemas.SpotStatus(
-            crowd_level=schemas.CrowdLevel(new_spot.crowd_level.value),
-            rating=new_spot.rating
-        ),
-        author=schemas.AuthorInfo(
-            id=new_spot.author.id,
-            username=new_spot.author.username,
-            icon_url=new_spot.author.icon_url
-        ),
-        skin=schemas.SkinInfo(
-            id=new_spot.skin.id,
-            name=new_spot.skin.name,
-            image_url=new_spot.skin.image_url
+    return _spot_to_response(new_spot, include_description=True)
+
+
+@app.put("/spots/{spot_id}", response_model=schemas.SpotResponse)
+def update_spot(
+    spot_id: UUID,
+    spot_update: schemas.SpotUpdate,
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """
+    スポットを更新（作成者のみ）。
+    """
+    image_url = _upload_image_from_base64(spot_update.image_base64, folder="spots") if spot_update.image_base64 else None
+    try:
+        updated_spot = crud.update_spot(
+            db,
+            spot_id,
+            current_user.id,
+            spot_update,
+            image_url=image_url
         )
-    )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Spot not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden") from None
+
+    return _spot_to_response(updated_spot, include_description=True)
+
+
+@app.delete("/spots/{spot_id}")
+def delete_spot(
+    spot_id: UUID,
+    current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """
+    スポットを削除（作成者のみ）。
+    """
+    try:
+        crud.delete_spot(db, spot_id, current_user.id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Spot not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden") from None
+
+    return {"success": True, "id": str(spot_id)}
 
 
 # Users

@@ -24,6 +24,7 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: ClipRRect(
@@ -35,7 +36,7 @@ class GlassCard extends StatelessWidget {
             height: height,
             padding: padding ?? const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: AppColors.cardSurface.withOpacity(0.6),
+              color: colors.cardSurface.withOpacity(0.6),
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
                 color: Colors.white.withOpacity(0.1),
