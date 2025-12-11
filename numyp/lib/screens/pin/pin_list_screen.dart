@@ -30,12 +30,12 @@ class PinListScreen extends ConsumerWidget {
         foregroundColor: Colors.black,
       ),
       body: spotsAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: colors.magicGold),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: colors.magicGold)),
         error: (error, _) => _ErrorState(
           message: 'スポットの取得に失敗しました\n${error.toString()}',
-          onRetry: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
+          onRetry: () =>
+              ref.read(spotsControllerProvider.notifier).refreshSpots(),
         ),
         data: (spots) {
           if (spots.isEmpty) {
@@ -44,7 +44,8 @@ class PinListScreen extends ConsumerWidget {
           return RefreshIndicator(
             color: colors.magicGold,
             backgroundColor: colors.cardSurface,
-            onRefresh: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
+            onRefresh: () =>
+                ref.read(spotsControllerProvider.notifier).refreshSpots(),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
               physics: const AlwaysScrollableScrollPhysics(),
@@ -65,13 +66,21 @@ class PinListScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _openForm(BuildContext context, WidgetRef ref, {Spot? spot}) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SpotFormScreen(spot: spot)),
-    );
+  Future<void> _openForm(
+    BuildContext context,
+    WidgetRef ref, {
+    Spot? spot,
+  }) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => SpotFormScreen(spot: spot)));
   }
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Spot spot) async {
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Spot spot,
+  ) async {
     final colors = AppColors.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
@@ -103,13 +112,13 @@ class PinListScreen extends ConsumerWidget {
     if (shouldDelete == true) {
       try {
         await ref.read(spotsControllerProvider.notifier).deleteSpot(spot.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('削除しました')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('削除しました')));
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('削除に失敗しました: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     }
   }
@@ -133,11 +142,17 @@ class _SpotTile extends StatelessWidget {
       ),
       child: ListTile(
         isThreeLine: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
         onTap: onTap,
         title: Text(
           spot.content.title,
-          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,35 +174,49 @@ class _SpotTile extends StatelessWidget {
             ),
           ],
         ),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              spot.status.crowdLevel.label,
-              style: TextStyle(color: colors.magicGold, fontSize: 12),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                5,
-                (index) => Icon(
-                  index < spot.status.rating ? Icons.star : Icons.star_border,
-                  size: 14,
-                  color: colors.magicGold,
+        trailing: SizedBox(
+          width: 70,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                spot.status.crowdLevel.label,
+                style: TextStyle(color: colors.magicGold, fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  5,
+                  (index) => Icon(
+                    index < spot.status.rating ? Icons.star : Icons.star_border,
+                    size: 12,
+                    color: colors.magicGold,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 2),
-            IconButton(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+              SizedBox(
+                height: 24,
+                width: 24,
+                child: IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.redAccent,
+                    size: 16,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -239,9 +268,12 @@ class _ErrorState extends StatelessWidget {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: onRetry,
-            style: ElevatedButton.styleFrom(backgroundColor: colors.magicGold, foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: colors.magicGold,
+              foregroundColor: Colors.black,
+            ),
             child: const Text('再読み込み'),
-          )
+          ),
         ],
       ),
     );
