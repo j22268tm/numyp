@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../config/constants.dart';
 import '../models/spot.dart';
@@ -6,18 +7,19 @@ import '../models/user.dart';
 
 class ApiClient {
   ApiClient({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: AppConstants.apiBaseUrl,
-                connectTimeout: const Duration(
-                  seconds: AppConstants.requestTimeoutSeconds,
-                ),
-                receiveTimeout: const Duration(
-                  seconds: AppConstants.requestTimeoutSeconds,
-                ),
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              baseUrl: AppConstants.apiBaseUrl,
+              connectTimeout: const Duration(
+                seconds: AppConstants.requestTimeoutSeconds,
               ),
-            );
+              receiveTimeout: const Duration(
+                seconds: AppConstants.requestTimeoutSeconds,
+              ),
+            ),
+          );
 
   final Dio _dio;
 
@@ -32,32 +34,54 @@ class ApiClient {
         .toList();
   }
 
-  Future<void> signup({required String username, required String password}) async {
-    await _dio.post('/auth/signup', data: {
-      'username': username,
-      'password': password,
-    });
+  Future<void> signup({
+    required String username,
+    required String password,
+  }) async {
+    debugPrint('[API] サインアップリクエスト送信');
+    debugPrint('[API] URL: ${AppConstants.apiBaseUrl}/auth/signup');
+    debugPrint('[API] ユーザー名: $username');
+
+    try {
+      final response = await _dio.post(
+        '/auth/signup',
+        data: {'username': username, 'password': password},
+      );
+      debugPrint('[API] サインアップ成功 - ステータス: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('[API] サインアップ失敗: $e');
+      rethrow;
+    }
   }
 
-  Future<String> login({required String username, required String password}) async {
-    final response = await _dio.post(
-      '/auth/login',
-      data: {
-        'username': username,
-        'password': password,
-      },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
-    );
+  Future<String> login({
+    required String username,
+    required String password,
+  }) async {
+    debugPrint('[API] ログインリクエスト送信');
+    debugPrint('[API] URL: ${AppConstants.apiBaseUrl}/auth/login');
+    debugPrint('[API] ユーザー名: $username');
 
-    final data = response.data as Map<String, dynamic>;
-    return data['access_token'] as String;
+    try {
+      final response = await _dio.post(
+        '/auth/login',
+        data: {'username': username, 'password': password},
+        options: Options(contentType: Headers.formUrlEncodedContentType),
+      );
+      debugPrint('[API] ログイン成功 - ステータス: ${response.statusCode}');
+
+      final data = response.data as Map<String, dynamic>;
+      final token = data['access_token'] as String;
+      debugPrint('[API] トークン取得成功 (長さ: ${token.length})');
+      return token;
+    } catch (e) {
+      debugPrint('[API] ログイン失敗: $e');
+      rethrow;
+    }
   }
 
   Future<AppUser> fetchCurrentUser(String token) async {
-    final response = await _dio.get(
-      '/users/me',
-      options: _authOptions(token),
-    );
+    final response = await _dio.get('/users/me', options: _authOptions(token));
     return AppUser.fromApi(response.data as Map<String, dynamic>, token);
   }
 
@@ -118,13 +142,7 @@ class ApiClient {
     return Spot.fromJson(response.data as Map<String, dynamic>);
   }
 
-  Future<void> deleteSpot({
-    required String token,
-    required String id,
-  }) async {
-    await _dio.delete(
-      '/spots/$id',
-      options: _authOptions(token),
-    );
+  Future<void> deleteSpot({required String token, required String id}) async {
+    await _dio.delete('/spots/$id', options: _authOptions(token));
   }
 }
