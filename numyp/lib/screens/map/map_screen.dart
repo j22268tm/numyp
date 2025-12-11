@@ -36,9 +36,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   void initState() {
     super.initState();
     _loadMapStyles();
-    ref.listen<ThemeMode>(themeModeProvider, (previous, next) {
-      _applyMapStyle(next);
-    });
     _initialCameraPosition = const CameraPosition(
       target: LatLng(
         AppConstants.initialLatitude,
@@ -56,6 +53,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<ThemeMode>(themeModeProvider, (previous, next) {
+      _applyMapStyle(next);
+    });
+
     final Widget body;
 
     switch (_currentIndex) {
@@ -328,6 +329,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _darkMapStyle = dark;
       _lightMapStyle = light;
     });
+    if (!mounted) return;
     await _applyMapStyle(ref.read(themeModeProvider));
   }
 
