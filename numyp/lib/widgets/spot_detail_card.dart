@@ -31,10 +31,26 @@ class SpotDetailCard extends StatelessWidget {
                       ? Image.network(
                           spot.content.imageUrl!,
                           fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: colors.magicGold,
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: colors.cardSurface.withOpacity(0.5),
+                            child: Icon(Icons.broken_image, color: colors.textSecondary),
+                          ),
                         )
                       : Container(
                           color: colors.cardSurface.withOpacity(0.5),
-                          child: const Icon(Icons.photo, color: Colors.white54),
+                          child: Icon(Icons.photo, color: colors.textSecondary),
                         ),
                 ),
               ),
@@ -89,12 +105,10 @@ class SpotDetailCard extends StatelessWidget {
                         CircleAvatar(
                           radius: 14,
                           backgroundColor: colors.fantasyPurple,
-                          backgroundImage: spot.author.iconUrl != null
-                              ? NetworkImage(spot.author.iconUrl!)
-                              : null,
-                          child: spot.author.iconUrl == null
-                              ? const Icon(Icons.person, size: 16)
-                              : null,
+                          foregroundImage:
+                              spot.author.iconUrl != null ? NetworkImage(spot.author.iconUrl!) : null,
+                          onForegroundImageError: (_, __) {},
+                          child: const Icon(Icons.person, size: 16),
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -107,7 +121,10 @@ class SpotDetailCard extends StatelessWidget {
                             backgroundColor:
                                 colors.cardSurface.withOpacity(0.7),
                             avatar: CircleAvatar(
-                              backgroundImage: NetworkImage(spot.skin.imageUrl!),
+                              backgroundColor: colors.fantasyPurple,
+                              foregroundImage: NetworkImage(spot.skin.imageUrl!),
+                              onForegroundImageError: (_, __) {},
+                              child: Icon(Icons.broken_image, color: colors.textSecondary, size: 16),
                             ),
                             label: Text(
                               spot.skin.name,

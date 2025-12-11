@@ -82,6 +82,7 @@ class PinListScreen extends ConsumerWidget {
     Spot spot,
   ) async {
     final colors = AppColors.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -112,13 +113,9 @@ class PinListScreen extends ConsumerWidget {
     if (shouldDelete == true) {
       try {
         await ref.read(spotsControllerProvider.notifier).deleteSpot(spot.id);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('削除しました')));
+        scaffoldMessenger.showSnackBar(const SnackBar(content: Text('削除しました')));
       } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        scaffoldMessenger.showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
       }
     }
   }
@@ -136,7 +133,7 @@ class _SpotTile extends StatelessWidget {
     final colors = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: colors.cardSurface.withOpacity(0.8),
+        color: colors.cardSurface.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white10),
       ),

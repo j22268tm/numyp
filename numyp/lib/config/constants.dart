@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AppConstants {
@@ -6,8 +9,13 @@ class AppConstants {
 
   /// env.jsonを読み込む
   static Future<void> loadEnv() async {
-    final String envString = await rootBundle.loadString('env.json');
-    _envConfig = json.decode(envString);
+    try {
+      final String envString = await rootBundle.loadString('env.json');
+      _envConfig = json.decode(envString) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('env.json の読み込みに失敗しました: $e');
+      _envConfig = null; // デフォルト値が使用されます
+    }
   }
 
   /// APIのベースURL

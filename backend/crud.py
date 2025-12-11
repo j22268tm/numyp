@@ -273,12 +273,12 @@ def update_spot(
     spot_update: schemas.SpotUpdate,
     image_url: Optional[str] = None,
 ) -> models.Spot:
-    """スポットを更新（作成者のみ許可）"""
+    """スポットを更新(作成者のみ許可)"""
     db_spot = get_spot_by_id(db, spot_id)
     if db_spot is None:
-        raise ValueError("spot not found")
+        raise ValueError(f"Spot {spot_id} not found")
     if db_spot.author_id != user_id:
-        raise PermissionError("forbidden")
+        raise PermissionError(f"User {user_id} does not have permission to update spot {spot_id}")
 
     if spot_update.lat is not None:
         db_spot.latitude = spot_update.lat
@@ -295,18 +295,22 @@ def update_spot(
     if image_url is not None:
         db_spot.image_url = image_url
 
-    db.commit()
-    db.refresh(db_spot)
+    try:
+        db.commit()
+        db.refresh(db_spot)
+    except Exception:
+        db.rollback()
+        raise
     return db_spot
 
 
 def delete_spot(db: Session, spot_id: UUID, user_id: UUID) -> None:
-    """スポットを削除（作成者のみ許可）"""
+    """スポットを削除(作成者のみ許可)"""
     db_spot = get_spot_by_id(db, spot_id)
     if db_spot is None:
-        raise ValueError("spot not found")
+        raise ValueError(f"Spot {spot_id} not found")
     if db_spot.author_id != user_id:
-        raise PermissionError("forbidden")
+        raise PermissionError(f"User {user_id} does not have permission to delete spot {spot_id}")
 
     db.delete(db_spot)
     db.commit()

@@ -20,17 +20,41 @@ class Spot {
   final SkinInfo skin;
 
   factory Spot.fromJson(Map<String, dynamic> json) {
+    final id = json['id'] as String?;
+    final createdAt = json['created_at'] as String?;
+    final locationJson = json['location'] as Map<String, dynamic>?;
+    final contentJson = json['content'] as Map<String, dynamic>?;
+    final statusJson = json['status'] as Map<String, dynamic>?;
+    final authorJson = json['author'] as Map<String, dynamic>?;
+    final skinJson = json['skin'] as Map<String, dynamic>?;
+
+    if (id == null ||
+        createdAt == null ||
+        locationJson == null ||
+        contentJson == null ||
+        statusJson == null ||
+        authorJson == null ||
+        skinJson == null) {
+      throw const FormatException('Missing required spot fields');
+    }
+
+    final lat = (locationJson['lat'] as num?);
+    final lng = (locationJson['lng'] as num?);
+    if (lat == null || lng == null) {
+      throw const FormatException('Location lat/lng are required');
+    }
+
     return Spot(
-      id: json['id'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      id: id,
+      createdAt: DateTime.parse(createdAt),
       location: LatLng(
-        (json['location']['lat'] as num).toDouble(),
-        (json['location']['lng'] as num).toDouble(),
+        lat.toDouble(),
+        lng.toDouble(),
       ),
-      content: SpotContent.fromJson(json['content'] as Map<String, dynamic>),
-      status: SpotStatus.fromJson(json['status'] as Map<String, dynamic>),
-      author: AuthorInfo.fromJson(json['author'] as Map<String, dynamic>),
-      skin: SkinInfo.fromJson(json['skin'] as Map<String, dynamic>),
+      content: SpotContent.fromJson(contentJson),
+      status: SpotStatus.fromJson(statusJson),
+      author: AuthorInfo.fromJson(authorJson),
+      skin: SkinInfo.fromJson(skinJson),
     );
   }
 }
@@ -99,7 +123,6 @@ extension CrowdLevelExtension on CrowdLevel {
       case CrowdLevel.high:
         return 'high';
       case CrowdLevel.medium:
-      default:
         return 'medium';
     }
   }

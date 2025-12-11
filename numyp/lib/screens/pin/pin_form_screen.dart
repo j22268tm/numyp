@@ -99,7 +99,16 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                         prefixIcon: Icon(Icons.my_location),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                      validator: (value) => value == null || double.tryParse(value) == null ? '緯度を入力してください' : null,
+                      validator: (value) {
+                        if (value == null || double.tryParse(value) == null) {
+                          return '緯度を入力してください';
+                        }
+                        final lat = double.parse(value);
+                        if (lat < -90 || lat > 90) {
+                          return '緯度は-90〜90の範囲で入力してください';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -111,7 +120,16 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                         prefixIcon: Icon(Icons.place_outlined),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                      validator: (value) => value == null || double.tryParse(value) == null ? '経度を入力してください' : null,
+                      validator: (value) {
+                        if (value == null || double.tryParse(value) == null) {
+                          return '経度を入力してください';
+                        }
+                        final lng = double.parse(value);
+                        if (lng < -180 || lng > 180) {
+                          return '経度は-180〜180の範囲で入力してください';
+                        }
+                        return null;
+                      },
                     ),
                   ),
                 ],
@@ -225,11 +243,14 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
         );
       }
     } catch (e) {
-      setState(() => _isSaving = false);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('保存に失敗しました: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 }

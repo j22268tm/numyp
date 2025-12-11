@@ -25,12 +25,38 @@ class SpotPreviewCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: SizedBox.expand(
                 child: spot.content.imageUrl != null
-                    ? Image.network(spot.content.imageUrl!, fit: BoxFit.cover)
+                    ? Image.network(
+                        spot.content.imageUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              color: colors.magicGold,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: colors.cardSurface.withOpacity(0.5),
+                          child: Center(
+                            child: Icon(
+                              Icons.broken_image,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      )
                     : Container(
                         color: colors.cardSurface.withOpacity(0.5),
-                        child: const Center(
-                          child: Icon(Icons.image_not_supported,
-                              color: Colors.white54),
+                        child: Center(
+                          child: Icon(
+                            Icons.image_not_supported,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ),
               ),

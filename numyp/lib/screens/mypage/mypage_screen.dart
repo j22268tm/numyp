@@ -93,11 +93,21 @@ class MyPageScreen extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ref.read(authProvider.notifier).logout();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('ログアウトしました')),
-                  );
+                onPressed: () async {
+                    try {
+                      ref.read(authProvider.notifier).logout();
+                      if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('ログアウトしました')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('ログアウトに失敗しました: $e')),
+                      );
+                    }
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,

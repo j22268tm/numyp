@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/user.dart';
@@ -12,9 +14,14 @@ class AuthState {
   final bool isLoading;
   final String? errorMessage;
 
-  AuthState copyWith({AppUser? user, bool? isLoading, String? errorMessage}) {
+  AuthState copyWith({
+    AppUser? user,
+    bool clearUser = false,
+    bool? isLoading,
+    String? errorMessage,
+  }) {
     return AuthState(
-      user: user ?? this.user,
+      user: clearUser ? null : (user ?? this.user),
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
     );
@@ -44,7 +51,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         errorMessage: detail ?? '登録に失敗しました',
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('Registration error: $e\n$stackTrace');
       state = state.copyWith(isLoading: false, errorMessage: '登録に失敗しました');
     }
   }
@@ -68,7 +76,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         isLoading: false,
         errorMessage: detail ?? 'ログインに失敗しました',
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('Login error: $e\n$stackTrace');
       state = state.copyWith(isLoading: false, errorMessage: 'ログインに失敗しました');
     }
   }

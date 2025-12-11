@@ -76,8 +76,6 @@ class AppTheme {
             onSecondary: Colors.white,
             surface: colors.cardSurface,
             onSurface: colors.textPrimary,
-            background: colors.midnightBackground,
-            onBackground: colors.textPrimary,
             error: const Color(0xFFCF6679),
           )
         : ColorScheme.light(
@@ -87,8 +85,6 @@ class AppTheme {
             onSecondary: Colors.white,
             surface: colors.cardSurface,
             onSurface: colors.textPrimary,
-            background: colors.midnightBackground,
-            onBackground: colors.textPrimary,
             error: const Color(0xFFB3261E),
           );
 

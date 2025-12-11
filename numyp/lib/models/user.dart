@@ -20,10 +20,15 @@ class AppUser {
   factory AppUser.fromApi(Map<String, dynamic> json, String token) {
     final wallet = json['wallet'] as Map<String, dynamic>?;
     final skin = json['current_skin'] as Map<String, dynamic>?;
+    final id = json['id'] as String?;
+    final username = json['username'] as String?;
+    if (id == null || username == null) {
+      throw const FormatException('User id and username are required');
+    }
 
     return AppUser(
-      id: json['id'] as String,
-      username: json['username'] as String,
+      id: id,
+      username: username,
       accessToken: token,
       iconUrl: json['icon_url'] as String?,
       coins: (wallet?['coins'] as num?)?.toInt() ?? 0,

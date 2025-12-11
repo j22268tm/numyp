@@ -358,9 +358,9 @@ def update_spot(
             image_url=image_url
         )
     except ValueError:
-        raise HTTPException(status_code=404, detail="Spot not found")
+        raise HTTPException(status_code=404, detail="Spot not found") from None
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden") from None
 
     return _spot_to_response(updated_spot, include_description=True)
 
@@ -377,9 +377,9 @@ def delete_spot(
     try:
         crud.delete_spot(db, spot_id, current_user.id)
     except ValueError:
-        raise HTTPException(status_code=404, detail="Spot not found")
+        raise HTTPException(status_code=404, detail="Spot not found") from None
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden") from None
 
     return {"success": True, "id": str(spot_id)}
 

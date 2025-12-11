@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/constants.dart';
 import 'config/theme.dart';
@@ -9,7 +10,12 @@ import 'screens/map/map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppConstants.loadEnv();
+  try {
+    await AppConstants.loadEnv();
+  } catch (e) {
+    debugPrint('Failed to load env.json: $e');
+    // デフォルト値が使用されます
+  }
   runApp(const ProviderScope(child: MyApp()));
 }
 

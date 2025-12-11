@@ -53,7 +53,7 @@ class SpotCreate(BaseModel):
 
 
 class SpotUpdate(BaseModel):
-    """スポット更新用モデル（部分更新も許容）"""
+    """スポット更新用モデル(部分更新も許容)"""
     lat: Optional[float] = None
     lng: Optional[float] = None
     title: Optional[str] = Field(None, min_length=1, max_length=50)
