@@ -115,7 +115,9 @@ class PinListScreen extends ConsumerWidget {
         await ref.read(spotsControllerProvider.notifier).deleteSpot(spot.id);
         scaffoldMessenger.showSnackBar(const SnackBar(content: Text('削除しました')));
       } catch (e) {
-        scaffoldMessenger.showSnackBar(SnackBar(content: Text('削除に失敗しました: $e')));
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('削除に失敗しました: $e')),
+        );
       }
     }
   }
@@ -172,7 +174,7 @@ class _SpotTile extends StatelessWidget {
           ],
         ),
         trailing: SizedBox(
-          width: 70,
+          width: 80,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -180,36 +182,31 @@ class _SpotTile extends StatelessWidget {
             children: [
               Text(
                 spot.status.crowdLevel.label,
-                style: TextStyle(color: colors.magicGold, fontSize: 12),
+                style: TextStyle(color: colors.magicGold, fontSize: 11),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(
                   5,
                   (index) => Icon(
-                    index < spot.status.rating ? Icons.star : Icons.star_border,
-                    size: 12,
+                    index < spot.status.rating.clamp(1, 5)
+                        ? Icons.star
+                        : Icons.star_border,
+                    size: 11,
                     color: colors.magicGold,
                   ),
                 ),
               ),
-              SizedBox(
-                height: 24,
-                width: 24,
-                child: IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                    size: 16,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+              GestureDetector(
+                onTap: onDelete,
+                child: Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                  size: 28,
                 ),
               ),
             ],

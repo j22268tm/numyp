@@ -36,8 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   google_maps_flutter: ^2.14.0
   flutter_riverpod: ^2.6.1
-  dio: ^5.7.0
-  uuid: ^4.4.2
+  dio: ^5.9.0
+  uuid: ^4.5.2
 
 dev_dependencies:
   flutter_test:

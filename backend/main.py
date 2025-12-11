@@ -74,7 +74,7 @@ def _upload_image_from_base64(image_base64: str, folder: str = "spots") -> str:
     バリデーションエラーはHTTPExceptionで返却する。
     """
     # base64サイズ制限（約10MB相当）
-    max_base64_size = 14 * 1024 * 1024  # 10MBをbase64すると約4/3倍
+    max_base64_size = 14 * 1024 * 1024
     if len(image_base64) > max_base64_size:
         raise HTTPException(status_code=400, detail="Image data is too large")
 

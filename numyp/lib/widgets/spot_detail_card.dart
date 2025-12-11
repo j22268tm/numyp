@@ -35,9 +35,10 @@ class SpotDetailCard extends StatelessWidget {
                             if (loadingProgress == null) return child;
                             return Center(
                               child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
+                                value: loadingProgress.expectedTotalBytes != null &&
+                                  loadingProgress.expectedTotalBytes! > 0
                                     ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
+                                  loadingProgress.expectedTotalBytes!
                                     : null,
                                 color: colors.magicGold,
                               ),
