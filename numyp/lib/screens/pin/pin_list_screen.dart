@@ -12,25 +12,26 @@ class PinListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final spotsAsync = ref.watch(spotsControllerProvider);
+    final colors = AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.midnightBackground,
+      backgroundColor: colors.midnightBackground,
       appBar: AppBar(
         title: const Text('スポット管理'),
-        backgroundColor: AppColors.midnightBackground,
+        backgroundColor: colors.midnightBackground,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(context, ref),
-        backgroundColor: AppColors.magicGold,
+        backgroundColor: colors.magicGold,
         label: const Text('新規スポット'),
         icon: const Icon(Icons.add),
         foregroundColor: Colors.black,
       ),
       body: spotsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.magicGold),
+        loading: () => Center(
+          child: CircularProgressIndicator(color: colors.magicGold),
         ),
         error: (error, _) => _ErrorState(
           message: 'スポットの取得に失敗しました\n${error.toString()}',
@@ -41,8 +42,8 @@ class PinListScreen extends ConsumerWidget {
             return const _EmptyState();
           }
           return RefreshIndicator(
-            color: AppColors.magicGold,
-            backgroundColor: AppColors.cardSurface,
+            color: colors.magicGold,
+            backgroundColor: colors.cardSurface,
             onRefresh: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -71,15 +72,16 @@ class PinListScreen extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Spot spot) async {
+    final colors = AppColors.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.cardSurface,
-          title: const Text('スポットを削除', style: TextStyle(color: AppColors.textPrimary)),
+          backgroundColor: colors.cardSurface,
+          title: Text('スポットを削除', style: TextStyle(color: colors.textPrimary)),
           content: Text(
             '「${spot.content.title}」を削除しますか？',
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colors.textSecondary),
           ),
           actions: [
             TextButton(
@@ -122,9 +124,10 @@ class _SpotTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withOpacity(0.8),
+        color: colors.cardSurface.withOpacity(0.8),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white10),
       ),
@@ -134,23 +137,23 @@ class _SpotTile extends StatelessWidget {
         onTap: onTap,
         title: Text(
           spot.content.title,
-          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               spot.content.description ?? '説明なし',
-              style: const TextStyle(color: AppColors.textSecondary, height: 1.2),
+              style: TextStyle(color: colors.textSecondary, height: 1.2),
             ),
             const SizedBox(height: 6),
             Row(
               children: [
-                Icon(Icons.location_on, size: 16, color: AppColors.magicGold),
+                Icon(Icons.location_on, size: 16, color: colors.magicGold),
                 const SizedBox(width: 4),
                 Text(
                   '${spot.location.latitude.toStringAsFixed(5)}, ${spot.location.longitude.toStringAsFixed(5)}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -162,7 +165,7 @@ class _SpotTile extends StatelessWidget {
           children: [
             Text(
               spot.status.crowdLevel.label,
-              style: const TextStyle(color: AppColors.magicGold, fontSize: 12),
+              style: TextStyle(color: colors.magicGold, fontSize: 12),
             ),
             const SizedBox(height: 4),
             Row(
@@ -172,7 +175,7 @@ class _SpotTile extends StatelessWidget {
                 (index) => Icon(
                   index < spot.status.rating ? Icons.star : Icons.star_border,
                   size: 14,
-                  color: AppColors.magicGold,
+                  color: colors.magicGold,
                 ),
               ),
             ),
@@ -196,15 +199,16 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: const [
-          Icon(Icons.push_pin_outlined, color: AppColors.magicGold, size: 48),
-          SizedBox(height: 12),
+        children: [
+          Icon(Icons.push_pin_outlined, color: colors.magicGold, size: 48),
+          const SizedBox(height: 12),
           Text(
             '登録されたスポットはありません',
-            style: TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colors.textSecondary),
           ),
         ],
       ),
@@ -220,6 +224,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -229,12 +234,12 @@ class _ErrorState extends StatelessWidget {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.textSecondary),
+            style: TextStyle(color: colors.textSecondary),
           ),
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: onRetry,
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.magicGold, foregroundColor: Colors.black),
+            style: ElevatedButton.styleFrom(backgroundColor: colors.magicGold, foregroundColor: Colors.black),
             child: const Text('再読み込み'),
           )
         ],

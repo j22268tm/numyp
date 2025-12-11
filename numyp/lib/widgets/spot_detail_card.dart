@@ -12,6 +12,7 @@ class SpotDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return GlassCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -32,7 +33,7 @@ class SpotDetailCard extends StatelessWidget {
                           fit: BoxFit.cover,
                         )
                       : Container(
-                          color: AppColors.cardSurface.withOpacity(0.5),
+                          color: colors.cardSurface.withOpacity(0.5),
                           child: const Icon(Icons.photo, color: Colors.white54),
                         ),
                 ),
@@ -48,17 +49,17 @@ class SpotDetailCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             spot.content.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                              color: colors.textPrimary,
                             ),
                           ),
                         ),
                         if (onClose != null)
                           IconButton(
                             icon: const Icon(Icons.close, size: 18),
-                            color: AppColors.textSecondary,
+                            color: colors.textSecondary,
                             onPressed: onClose,
                           ),
                       ],
@@ -77,8 +78,8 @@ class SpotDetailCard extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       spot.content.description ?? '詳細情報は後ほど公開されます。',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: colors.textSecondary,
                         fontSize: 13,
                       ),
                     ),
@@ -87,7 +88,7 @@ class SpotDetailCard extends StatelessWidget {
                       children: [
                         CircleAvatar(
                           radius: 14,
-                          backgroundColor: AppColors.fantasyPurple,
+                          backgroundColor: colors.fantasyPurple,
                           backgroundImage: spot.author.iconUrl != null
                               ? NetworkImage(spot.author.iconUrl!)
                               : null,
@@ -98,19 +99,19 @@ class SpotDetailCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           spot.author.username,
-                          style: const TextStyle(color: AppColors.textPrimary),
+                          style: TextStyle(color: colors.textPrimary),
                         ),
                         const Spacer(),
                         if (spot.skin.imageUrl != null)
                           Chip(
                             backgroundColor:
-                                AppColors.cardSurface.withOpacity(0.7),
+                                colors.cardSurface.withOpacity(0.7),
                             avatar: CircleAvatar(
                               backgroundImage: NetworkImage(spot.skin.imageUrl!),
                             ),
                             label: Text(
                               spot.skin.name,
-                              style: const TextStyle(color: AppColors.textPrimary),
+                              style: TextStyle(color: colors.textPrimary),
                             ),
                           ),
                       ],
@@ -134,10 +135,11 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withOpacity(0.6),
+        color: colors.cardSurface.withOpacity(0.6),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white12),
       ),
@@ -145,13 +147,13 @@ class _StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 16, color: AppColors.magicGold),
+            Icon(icon, size: 16, color: colors.magicGold),
             const SizedBox(width: 4),
           ],
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),

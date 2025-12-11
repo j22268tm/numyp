@@ -12,6 +12,7 @@ class SpotPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return GlassCard(
       width: 210,
       padding: const EdgeInsets.all(12),
@@ -26,7 +27,7 @@ class SpotPreviewCard extends StatelessWidget {
                 child: spot.content.imageUrl != null
                     ? Image.network(spot.content.imageUrl!, fit: BoxFit.cover)
                     : Container(
-                        color: AppColors.cardSurface.withOpacity(0.5),
+                        color: colors.cardSurface.withOpacity(0.5),
                         child: const Center(
                           child: Icon(Icons.image_not_supported,
                               color: Colors.white54),
@@ -40,20 +41,20 @@ class SpotPreviewCard extends StatelessWidget {
             spot.content.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
           Row(
             children: [
-              Icon(Icons.location_on, size: 16, color: AppColors.magicGold),
+              Icon(Icons.location_on, size: 16, color: colors.magicGold),
               const SizedBox(width: 4),
               Text(
                 '${spot.location.latitude.toStringAsFixed(5)}, ${spot.location.longitude.toStringAsFixed(5)}',
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: colors.textSecondary,
                   fontSize: 12,
                 ),
               )

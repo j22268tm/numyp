@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/services.dart';
 
 import '../../config/constants.dart';
 import '../../config/theme.dart';
 import '../../models/spot.dart';
+import '../../providers/theme_provider.dart';
 import '../../providers/spot_providers.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/glass_card.dart';
@@ -25,12 +27,18 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   GoogleMapController? _mapController;
   late final CameraPosition _initialCameraPosition;
+  String? _darkMapStyle;
+  String? _lightMapStyle;
 
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _loadMapStyles();
+    ref.listen<ThemeMode>(themeModeProvider, (previous, next) {
+      _applyMapStyle(next);
+    });
     _initialCameraPosition = const CameraPosition(
       target: LatLng(
         AppConstants.initialLatitude,
@@ -73,11 +81,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             _currentIndex = index;
           });
         },
-        backgroundColor: AppColors.midnightBackground.withOpacity(0.95),
-        selectedItemColor: AppColors.magicGold,
-        unselectedItemColor: AppColors.textSecondary,
         type: BottomNavigationBarType.fixed,
-        elevation: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'map'),
           BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'spots'),
@@ -93,17 +97,21 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final selectedSpot = ref.watch(selectedSpotProvider);
 
     final user = ref.watch(authProvider).user;
+    final colors = AppColors.of(context);
+    final themeMode = ref.watch(themeModeProvider);
+    final isDarkMode = themeMode == ThemeMode.dark;
 
     return Stack(
       children: [
         GoogleMap(
-          mapType: MapType.hybrid,
+          // Cloud Map Styling works only with the normal map type.
+          mapType: MapType.normal,
           initialCameraPosition: _initialCameraPosition,
           onMapCreated: (GoogleMapController controller) {
             _mapController?.dispose();
             _mapController = controller;
+            _applyMapStyle(ref.read(themeModeProvider));
           },
-          cloudMapId: null,
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
           myLocationButtonEnabled: false,
@@ -119,34 +127,43 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                _buildCoinSection(user?.coins ?? 0),
+                _buildCoinSection(context, user?.coins ?? 0),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
-                    children: const [
+                    children: [
                       Text(
                         'numyp',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.w700,
                           fontSize: 16,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         '今日のスポットを探索しよう',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                _buildIconBadge(user?.iconUrl),
+                IconButton(
+                  tooltip: isDarkMode ? 'ライトモードに切替' : 'ダークモードに切替',
+                  onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+                  icon: Icon(
+                    isDarkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                _buildIconBadge(context, user?.iconUrl),
               ],
             ),
           ),
@@ -218,18 +235,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             children: [
               FloatingActionButton(
                 heroTag: 'refresh',
-                backgroundColor: AppColors.cardSurface.withOpacity(0.85),
+                backgroundColor: colors.cardSurface.withOpacity(0.85),
                 onPressed: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
-                child: const Icon(Icons.refresh, color: AppColors.magicGold),
+                child: Icon(Icons.refresh, color: colors.magicGold),
               ),
               const SizedBox(height: 12),
               FloatingActionButton(
                 heroTag: 'location',
-                backgroundColor: AppColors.cardSurface.withOpacity(0.85),
+                backgroundColor: colors.cardSurface.withOpacity(0.85),
                 onPressed: _goToCurrentLocation,
-                child: const Icon(
+                child: Icon(
                   Icons.my_location,
-                  color: AppColors.magicGold,
+                  color: colors.magicGold,
                 ),
               ),
             ],
@@ -239,22 +256,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildCoinSection(int coins) {
+  Widget _buildCoinSection(BuildContext context, int coins) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withOpacity(0.5),
+        color: colors.cardSurface.withOpacity(0.5),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.monetization_on, color: AppColors.magicGold, size: 22),
+          Icon(Icons.monetization_on, color: colors.magicGold, size: 22),
           const SizedBox(width: 6),
           Text(
             coins.toString(),
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -263,17 +281,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  Widget _buildIconBadge(String? iconUrl) {
+  Widget _buildIconBadge(BuildContext context, String? iconUrl) {
+    final colors = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.fantasyPurple.withOpacity(0.3),
+        color: colors.fantasyPurple.withOpacity(0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white10),
       ),
       child: CircleAvatar(
         radius: 18,
-        backgroundColor: AppColors.fantasyPurple,
+        backgroundColor: colors.fantasyPurple,
         backgroundImage:
             iconUrl != null ? NetworkImage(iconUrl) : null,
         child:
@@ -300,6 +319,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
+
+  Future<void> _loadMapStyles() async {
+    final dark = await rootBundle.loadString('assets/map_styles/dark.json');
+    final light = await rootBundle.loadString('assets/map_styles/light.json');
+    if (!mounted) return;
+    setState(() {
+      _darkMapStyle = dark;
+      _lightMapStyle = light;
+    });
+    await _applyMapStyle(ref.read(themeModeProvider));
+  }
+
+  Future<void> _applyMapStyle(ThemeMode mode) async {
+    final controller = _mapController;
+    if (controller == null) return;
+    final style = mode == ThemeMode.dark ? _darkMapStyle : _lightMapStyle;
+    await controller.setMapStyle(style);
+  }
 }
 
 class _StatusBubble extends StatelessWidget {
@@ -311,6 +348,7 @@ class _StatusBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
     return GlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: InkWell(
@@ -318,12 +356,12 @@ class _StatusBubble extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: AppColors.magicGold),
+            Icon(icon, color: colors.magicGold),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 text,
-                style: const TextStyle(color: AppColors.textPrimary),
+                style: TextStyle(color: colors.textPrimary),
               ),
             ),
           ],

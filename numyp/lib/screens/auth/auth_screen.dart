@@ -41,6 +41,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final colors = AppColors.of(context);
 
     ref.listen(authProvider, (previous, next) {
       if (next.errorMessage != null && next.errorMessage!.isNotEmpty) {
@@ -106,10 +107,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           const SizedBox(height: 8),
                           Text(
                             _isLogin ? 'ユーザー名でログイン' : '新規登録してはじめる',
-                            style: const TextStyle(color: AppColors.textSecondary),
+                            style: TextStyle(color: colors.textSecondary),
                           ),
                           const SizedBox(height: 32),
-                          _buildForm(authState.isLoading),
+                          _buildForm(context, authState.isLoading),
                           const SizedBox(height: 24),
                           TextButton(
                             onPressed: authState.isLoading
@@ -119,7 +120,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                               _isLogin
                                   ? 'アカウントをお持ちでない方はこちら'
                                   : 'すでにアカウントをお持ちの方',
-                              style: const TextStyle(color: AppColors.magicGold),
+                              style: TextStyle(color: colors.magicGold),
                             ),
                           ),
                         ],
@@ -135,7 +136,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
-  Widget _buildForm(bool isLoading) {
+  Widget _buildForm(BuildContext context, bool isLoading) {
+    final colors = AppColors.of(context);
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.white.withAlpha((0.08 * 255).round()),
@@ -180,7 +182,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 child: ElevatedButton(
                   onPressed: isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.magicGold,
+                    backgroundColor: colors.magicGold,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),

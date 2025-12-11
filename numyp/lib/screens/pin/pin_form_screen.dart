@@ -52,13 +52,14 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.spot != null;
+    final colors = AppColors.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'スポットを編集' : '新規スポット作成'),
-        backgroundColor: AppColors.midnightBackground,
+        backgroundColor: colors.midnightBackground,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: AppColors.midnightBackground,
+      backgroundColor: colors.midnightBackground,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -145,14 +146,14 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('評価', style: TextStyle(color: AppColors.textSecondary)),
+                        Text('評価', style: TextStyle(color: colors.textSecondary)),
                         Slider(
                           value: _rating,
                           onChanged: (value) => setState(() => _rating = value),
                           min: 1,
                           max: 5,
                           divisions: 4,
-                          activeColor: AppColors.magicGold,
+                          activeColor: colors.magicGold,
                           inactiveColor: Colors.white24,
                           label: _rating.toStringAsFixed(0),
                         ),
@@ -167,7 +168,7 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                 child: ElevatedButton.icon(
                   onPressed: _isSaving ? null : _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.magicGold,
+                    backgroundColor: colors.magicGold,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),

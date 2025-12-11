@@ -11,12 +11,13 @@ class MyPageScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final colors = AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.midnightBackground,
+      backgroundColor: colors.midnightBackground,
       appBar: AppBar(
         title: const Text('マイページ'),
-        backgroundColor: AppColors.midnightBackground,
+        backgroundColor: colors.midnightBackground,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -28,7 +29,7 @@ class MyPageScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.cardSurface.withOpacity(0.8),
+                color: colors.cardSurface.withOpacity(0.8),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white12),
               ),
@@ -36,7 +37,7 @@ class MyPageScreen extends ConsumerWidget {
                 children: [
                   CircleAvatar(
                     radius: 30,
-                    backgroundColor: AppColors.fantasyPurple,
+                    backgroundColor: colors.fantasyPurple,
                     backgroundImage:
                         user?.iconUrl != null ? NetworkImage(user!.iconUrl!) : null,
                     child: user?.iconUrl == null
@@ -49,8 +50,8 @@ class MyPageScreen extends ConsumerWidget {
                     children: [
                       Text(
                         user?.username ?? 'ゲスト',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -60,7 +61,7 @@ class MyPageScreen extends ConsumerWidget {
                         user != null
                             ? '所持コイン: ${user.coins}'
                             : '未ログイン',
-                        style: const TextStyle(color: AppColors.textSecondary),
+                        style: TextStyle(color: colors.textSecondary),
                       ),
                     ],
                   )
@@ -68,20 +69,22 @@ class MyPageScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               'アクティビティ',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: colors.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),
             const SizedBox(height: 12),
             _buildStatTile(
+              context: context,
                 icon: Icons.spa,
                 label: 'スキン',
                 value: user?.currentSkinName ?? 'デフォルト'),
             _buildStatTile(
+              context: context,
               icon: Icons.map_outlined,
               label: '地図に戻る',
               value: 'マップタブから探索を続けよう',
@@ -111,18 +114,24 @@ class MyPageScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatTile({required IconData icon, required String label, required String value}) {
+  Widget _buildStatTile({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    final colors = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withOpacity(0.7),
+        color: colors.cardSurface.withOpacity(0.7),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white10),
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.magicGold),
+          Icon(icon, color: colors.magicGold),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -130,15 +139,15 @@ class MyPageScreen extends ConsumerWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: colors.textSecondary),
                 )
               ],
             ),
