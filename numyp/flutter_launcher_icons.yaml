@@ -1,0 +1,21 @@
+# flutter_launcher_icons.yaml
+dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  # Android設定
+  android: true
+  ios: true
+  
+  # 画像パス
+  image_path: "assets/icon/app_icon.png"
+  
+  # Android最小SDKバージョン
+  min_sdk_android: 21
+  
+  # Androidアダプティブアイコン設定
+  adaptive_icon_background: "#0F0F16"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  
+  # iOS設定
+  remove_alpha_ios: true
