@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../config/constants.dart';
 import '../../config/theme.dart';
@@ -32,6 +35,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   int _currentIndex = 0;
 
+  // 位置情報追従用の変数
+  StreamSubscription<Position>? _positionStreamSubscription;
+  bool _isTrackingMode = true;
+  LatLng? _currentPosition;
+
   @override
   void initState() {
     super.initState();
@@ -43,10 +51,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
       zoom: AppConstants.initialZoom,
     );
+    _startLocationTracking();
   }
 
   @override
   void dispose() {
+    _positionStreamSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -123,9 +133,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             _mapController = controller;
             _applyMapStyle(ref.read(themeModeProvider));
           },
+          onCameraMoveStarted: () {
+            // ユーザーが手動で地図を操作した場合、追従モードを解除
+            if (_isTrackingMode) {
+              setState(() {
+                _isTrackingMode = false;
+              });
+            }
+          },
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
           myLocationButtonEnabled: false,
+          myLocationEnabled: true, // デフォルトの青い点で現在地と方向を表示
           markers: markers,
         ),
 
@@ -147,7 +166,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'numyp',
+                        user?.username ?? 'ゲスト',
                         style: TextStyle(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -208,9 +227,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           Positioned(
             left: 0,
             right: 0,
-            bottom: 120,
+            bottom: 20,
             child: SizedBox(
-              height: 200,
+              height: 170,
               child: ListView.separated(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
@@ -245,7 +264,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
         // 現在地 / リフレッシュボタン
         Positioned(
-          bottom: 220,
+          bottom: 200,
           right: 16,
           child: Column(
             children: [
@@ -259,9 +278,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               const SizedBox(height: 12),
               FloatingActionButton(
                 heroTag: 'location',
-                backgroundColor: colors.cardSurface.withOpacity(0.85),
+                backgroundColor: _isTrackingMode
+                    ? colors.magicGold.withOpacity(0.9)
+                    : colors.cardSurface.withOpacity(0.85),
                 onPressed: _goToCurrentLocation,
-                child: Icon(Icons.my_location, color: colors.magicGold),
+                child: Icon(
+                  Icons.my_location,
+                  color: _isTrackingMode
+                      ? colors.cardSurface
+                      : colors.magicGold,
+                ),
               ),
             ],
           ),
@@ -315,13 +341,106 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  /// 現在地へ移動（仮実装）
+  /// ユーザーの現在位置を表すカスタムマーカーを作成
+  ///
+  /// 後から画像に置き換える場合は、以下の手順で実装してください：
+  /// 1. assets/images/ に画像ファイルを配置（例: user_location_pin.png）
+  /// 2. pubspec.yaml の assets セクションに画像を追加
+  /// 3. BitmapDescriptor.fromAssetImage() を使用してアイコンを読み込む
+  ///
+  /// 例：
+  /// ```dart
+  /// final icon = await BitmapDescriptor.fromAssetImage(
+  ///   const ImageConfiguration(size: Size(48, 48)),
+  ///   'assets/images/user_location_pin.png',
+  /// );
+  /// ```
+
+  // 現在は myLocationEnabled: true を使用しているため、このメソッドは使用していません
+  // カスタム画像に置き換えたい場合は、以下のコメントを解除して使用してください
+  /*
+  Marker _createUserLocationMarker() {
+    return Marker(
+      markerId: const MarkerId('user_location'),
+      position: _currentPosition!,
+      // TODO: 画像に置き換える場合は、ここでBitmapDescriptor.fromAssetImage()を使用
+      // 現在はデフォルトのマーカーを青色で表示
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      anchor: const Offset(0.5, 0.5), // マーカーの中心を位置に合わせる
+      zIndex: 999, // 他のマーカーより前面に表示
+      infoWindow: const InfoWindow(title: '現在地', snippet: 'あなたの現在位置です'),
+    );
+  }
+  */
+
+  /// 位置情報のリアルタイム監視を開始
+  void _startLocationTracking() {
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 0, // 少しでも動いたら即座に反応
+    );
+
+    _positionStreamSubscription =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) {
+            _onLocationUpdate(position);
+          },
+          onError: (error) {
+            debugPrint('位置情報の取得エラー: $error');
+          },
+        );
+  }
+
+  /// 位置情報更新時の処理
+  void _onLocationUpdate(Position position) {
+    final newPosition = LatLng(position.latitude, position.longitude);
+    setState(() {
+      _currentPosition = newPosition;
+    });
+
+    // 追従モードが有効な場合、カメラを移動
+    if (_isTrackingMode && _mapController != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: newPosition,
+            zoom: AppConstants.initialZoom + 1,
+          ),
+        ),
+      );
+    }
+  }
+
+  /// 現在地へ移動して追従モードを有効化
   Future<void> _goToCurrentLocation() async {
     final controller = _mapController;
     if (controller == null) return;
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(_initialCameraPosition),
-    );
+
+    setState(() {
+      _isTrackingMode = true;
+    });
+
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final currentLatLng = LatLng(position.latitude, position.longitude);
+
+      setState(() {
+        _currentPosition = currentLatLng;
+      });
+
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: currentLatLng,
+            zoom: AppConstants.initialZoom + 1,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('現在地の取得エラー: $e');
+    }
   }
 
   Future<void> _moveCamera(LatLng position) async {

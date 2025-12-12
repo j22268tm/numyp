@@ -101,7 +101,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Text(
-                            'numyp',
+                            'numip',
                             style: TextStyle(
                               fontSize: 36,
                               color: Colors.white,
