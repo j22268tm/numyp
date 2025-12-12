@@ -19,6 +19,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
   bool _isLogin = true;
+  bool _obscurePassword = true;
   late final AnimationController _bgController;
 
   @override
@@ -45,9 +46,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     ref.listen(authProvider, (previous, next) {
       if (next.errorMessage != null && next.errorMessage!.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.errorMessage!)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(next.errorMessage!)));
       }
     });
 
@@ -89,7 +90,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               ),
               // Content
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 48,
+                ),
                 child: SafeArea(
                   child: Center(
                     child: SingleChildScrollView(
@@ -117,9 +121,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                                 ? null
                                 : () => setState(() => _isLogin = !_isLogin),
                             child: Text(
-                              _isLogin
-                                  ? 'アカウントをお持ちでない方はこちら'
-                                  : 'すでにアカウントをお持ちの方',
+                              _isLogin ? 'アカウントをお持ちでない方はこちら' : 'すでにアカウントをお持ちの方',
                               style: TextStyle(color: colors.magicGold),
                             ),
                           ),
@@ -164,11 +166,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               const SizedBox(height: 12),
               TextFormField(
                 controller: _passwordController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'パスワード',
-                  prefixIcon: Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    onPressed: () => setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    }),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
                 ),
-                obscureText: true,
+                obscureText: _obscurePassword,
                 validator: (value) {
                   if (value == null || value.length < 6) {
                     return '6文字以上のパスワードを入力してください';
