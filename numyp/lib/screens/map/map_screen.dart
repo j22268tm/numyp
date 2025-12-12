@@ -66,6 +66,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       case 1:
         body = const PinListScreen();
         break;
+      case 2:
+        // TODO: Shop画面を実装
+        body = const Center(
+          child: Text('Shop画面(未実装)', style: TextStyle(color: Colors.white)),
+        );
+        break;
       default:
         body = const MyPageScreen();
         break;
@@ -86,6 +92,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'map'),
           BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'spots'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.shopping_bag),
+            label: 'shop',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'mypage'),
         ],
       ),
@@ -157,9 +167,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
                 IconButton(
                   tooltip: isDarkMode ? 'ライトモードに切替' : 'ダークモードに切替',
-                  onPressed: () => ref.read(themeModeProvider.notifier).toggle(),
+                  onPressed: () =>
+                      ref.read(themeModeProvider.notifier).toggle(),
                   icon: Icon(
-                    isDarkMode ? Icons.wb_sunny_outlined : Icons.dark_mode_outlined,
+                    isDarkMode
+                        ? Icons.wb_sunny_outlined
+                        : Icons.dark_mode_outlined,
                     color: colors.textPrimary,
                   ),
                 ),
@@ -184,7 +197,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             error: (error, _) => _StatusBubble(
               icon: Icons.error_outline,
               text: '取得に失敗しました。リトライ',
-              onTap: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
+              onTap: () =>
+                  ref.read(spotsControllerProvider.notifier).refreshSpots(),
             ),
           ),
         ),
@@ -224,7 +238,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             bottom: 20,
             child: SpotDetailCard(
               spot: selectedSpot,
-              onClose: () => ref.read(selectedSpotProvider.notifier).state = null,
+              onClose: () =>
+                  ref.read(selectedSpotProvider.notifier).state = null,
             ),
           ),
 
@@ -237,7 +252,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               FloatingActionButton(
                 heroTag: 'refresh',
                 backgroundColor: colors.cardSurface.withOpacity(0.85),
-                onPressed: () => ref.read(spotsControllerProvider.notifier).refreshSpots(),
+                onPressed: () =>
+                    ref.read(spotsControllerProvider.notifier).refreshSpots(),
                 child: Icon(Icons.refresh, color: colors.magicGold),
               ),
               const SizedBox(height: 12),
@@ -245,10 +261,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 heroTag: 'location',
                 backgroundColor: colors.cardSurface.withOpacity(0.85),
                 onPressed: _goToCurrentLocation,
-                child: Icon(
-                  Icons.my_location,
-                  color: colors.magicGold,
-                ),
+                child: Icon(Icons.my_location, color: colors.magicGold),
               ),
             ],
           ),
@@ -294,10 +307,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       child: CircleAvatar(
         radius: 18,
         backgroundColor: colors.fantasyPurple,
-        backgroundImage:
-            iconUrl != null ? NetworkImage(iconUrl) : null,
-        child:
-            iconUrl == null ? const Icon(Icons.person, color: Colors.white) : null,
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        child: iconUrl == null
+            ? const Icon(Icons.person, color: Colors.white)
+            : null,
       ),
     );
   }
@@ -361,10 +374,7 @@ class _StatusBubble extends StatelessWidget {
             Icon(icon, color: colors.magicGold),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                text,
-                style: TextStyle(color: colors.textPrimary),
-              ),
+              child: Text(text, style: TextStyle(color: colors.textPrimary)),
             ),
           ],
         ),
