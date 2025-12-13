@@ -95,7 +95,7 @@ class MyPageScreen extends ConsumerWidget {
               child: ElevatedButton.icon(
                 onPressed: () async {
                   try {
-                    ref.read(authProvider.notifier).logout();
+                    await ref.read(authProvider.notifier).logout();
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('ログアウトしました')),
