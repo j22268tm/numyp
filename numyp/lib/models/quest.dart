@@ -40,6 +40,29 @@ class QuestParticipant {
   final double? reportLatitude;
   final double? reportLongitude;
 
+  factory QuestParticipant.fromJson(Map<String, dynamic> json) {
+    final walkerJson = json['walker'] as Map<String, dynamic>?;
+    if (walkerJson == null) {
+      throw const FormatException('Missing walker info in participant');
+    }
+    DateTime? _parseDate(String? value) =>
+        value == null ? null : DateTime.tryParse(value);
+
+    return QuestParticipant(
+      id: json['id'] as String,
+      status: QuestParticipantStatusExtension.fromString(json['status'] as String?),
+      walker: AuthorInfo.fromJson(walkerJson),
+      acceptedAt: _parseDate(json['accepted_at'] as String?),
+      reportedAt: _parseDate(json['reported_at'] as String?),
+      rewardPaidAt: _parseDate(json['reward_paid_at'] as String?),
+      distanceAtAcceptM: (json['distance_at_accept_m'] as num?)?.toInt(),
+      photoUrl: json['photo_url'] as String?,
+      comment: json['comment'] as String?,
+      reportLatitude: (json['report_latitude'] as num?)?.toDouble(),
+      reportLongitude: (json['report_longitude'] as num?)?.toDouble(),
+    );
+  }
+
   QuestParticipant copyWith({
     QuestParticipantStatus? status,
     DateTime? acceptedAt,
@@ -104,6 +127,46 @@ class Quest {
   final String? activeParticipantId;
   final List<QuestParticipant> participants;
 
+  factory Quest.fromJson(Map<String, dynamic> json) {
+    final locationJson = json['location'] as Map<String, dynamic>?;
+    final requesterJson = json['requester'] as Map<String, dynamic>?;
+    final participantsJson = json['participants'] as List<dynamic>? ?? const [];
+
+    if (locationJson == null || requesterJson == null) {
+      throw const FormatException('Missing required quest fields');
+    }
+
+    DateTime? _parseDate(String? value) =>
+        value == null ? null : DateTime.tryParse(value);
+
+    final lat = (locationJson['lat'] as num?)?.toDouble();
+    final lng = (locationJson['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) {
+      throw const FormatException('Quest location is invalid');
+    }
+
+    return Quest(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      location: LatLng(lat, lng),
+      radiusMeters: (json['radius_meters'] as num?)?.toInt() ?? 0,
+      bountyCoins: (json['bounty_coins'] as num?)?.toInt() ?? 0,
+      lockedBountyCoins: (json['locked_bounty_coins'] as num?)?.toInt() ?? 0,
+      status: QuestStatusExtension.fromString(json['status'] as String?),
+      requester: AuthorInfo.fromJson(requesterJson),
+      createdAt: DateTime.parse(json['created_at'] as String),
+      expiresAt: _parseDate(json['expires_at'] as String?),
+      acceptedAt: _parseDate(json['accepted_at'] as String?),
+      completedAt: _parseDate(json['completed_at'] as String?),
+      expiredAt: _parseDate(json['expired_at'] as String?),
+      activeParticipantId: json['active_participant_id'] as String?,
+      participants: participantsJson
+          .map((p) => QuestParticipant.fromJson(p as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
   Quest copyWith({
     String? title,
     String? description,
@@ -146,6 +209,44 @@ class Quest {
       return participants.firstWhere((p) => p.id == activeParticipantId);
     } catch (_) {
       return null;
+    }
+  }
+}
+
+extension QuestStatusExtension on QuestStatus {
+  static QuestStatus fromString(String? value) {
+    switch (value) {
+      case 'accepted':
+        return QuestStatus.accepted;
+      case 'completed':
+        return QuestStatus.completed;
+      case 'expired':
+        return QuestStatus.expired;
+      case 'cancelled':
+        return QuestStatus.cancelled;
+      case 'open':
+      default:
+        return QuestStatus.open;
+    }
+  }
+}
+
+extension QuestParticipantStatusExtension on QuestParticipantStatus {
+  static QuestParticipantStatus fromString(String? value) {
+    switch (value) {
+      case 'accepted':
+        return QuestParticipantStatus.accepted;
+      case 'reported':
+        return QuestParticipantStatus.reported;
+      case 'settled':
+        return QuestParticipantStatus.settled;
+      case 'expired':
+        return QuestParticipantStatus.expired;
+      case 'declined':
+        return QuestParticipantStatus.declined;
+      case 'invited':
+      default:
+        return QuestParticipantStatus.invited;
     }
   }
 }

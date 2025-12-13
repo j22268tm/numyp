@@ -1,12 +1,18 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../config/theme.dart';
 import '../../models/quest.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/quest_provider.dart';
+import 'quest_completion_report_screen.dart';
+import 'quest_notifications_screen.dart';
 
 class QuestBoardScreen extends ConsumerStatefulWidget {
   const QuestBoardScreen({super.key});
@@ -48,12 +54,24 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
     final colors = AppColors.of(context);
     final questsAsync = ref.watch(questControllerProvider);
     final username = ref.watch(authProvider).user?.username ?? 'ウォーカー';
+    final currentUserId = ref.watch(authProvider).user?.id;
 
     return Scaffold(
       backgroundColor: colors.midnightBackground,
       appBar: AppBar(
         title: const Text('依頼と解決'),
         backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            tooltip: '通知',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QuestNotificationsScreen()),
+              );
+            },
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context),
@@ -113,8 +131,16 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
                         quest: quest,
                         distanceMeters: distance,
                         locationError: _locationError,
+                        isRequester: currentUserId != null && currentUserId == quest.requester.id,
                         onAccept: () => _acceptQuest(quest),
                         onReport: () => _openReportSheet(context, quest),
+                        onViewReport: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => QuestCompletionReportScreen(questId: quest.id),
+                            ),
+                          );
+                        },
                       );
                     },
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -154,74 +180,137 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
 
   Future<void> _openReportSheet(BuildContext context, Quest quest) async {
     final commentController = TextEditingController();
+    final picker = ImagePicker();
+    Uint8List? imageBytes;
+    String? imageBase64;
+
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         final colors = AppColors.of(context);
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 12,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.cardSurface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white10),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> pickFromGallery() async {
+              final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+              if (file == null) return;
+              final bytes = await file.readAsBytes();
+              if (bytes.length > 10 * 1024 * 1024) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('画像が大きすぎます（10MBまで）')),
+                  );
+                }
+                return;
+              }
+              final lower = file.path.toLowerCase();
+              final contentType = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
+              setModalState(() {
+                imageBytes = bytes;
+                imageBase64 = 'data:$contentType;base64,${base64Encode(bytes)}';
+              });
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 12,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colors.cardSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.white10),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('報告を送信', style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.close),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '報告を送信',
+                          style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '現地で撮影した写真と一言コメントを送ってください。',
+                      style: TextStyle(color: colors.textSecondary, height: 1.3),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: pickFromGallery,
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('写真を選ぶ'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        if (imageBytes != null)
+                          IconButton(
+                            tooltip: '写真を外す',
+                            onPressed: () => setModalState(() {
+                              imageBytes = null;
+                              imageBase64 = null;
+                            }),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                      ],
+                    ),
+                    if (imageBytes != null) ...[
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: AspectRatio(
+                          aspectRatio: 4 / 3,
+                          child: Image.memory(imageBytes!, fit: BoxFit.cover),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: commentController,
+                      maxLines: 3,
+                      style: TextStyle(color: colors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: '例: 行列は5組程度で風は弱め。',
+                        hintStyle: TextStyle(color: colors.textSecondary),
+                        filled: true,
+                        fillColor: Colors.black12,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.send_rounded),
+                        onPressed: () => Navigator.of(context).pop(true),
+                        label: const Text('報告する'),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '現地で撮影した内容や一言コメントを入力してください（写真送信は次のステップで実装予定）',
-                  style: TextStyle(color: colors.textSecondary, height: 1.3),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: commentController,
-                  maxLines: 3,
-                  style: TextStyle(color: colors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: '例: 行列は5組程度で風は弱め。',
-                    hintStyle: TextStyle(color: colors.textSecondary),
-                    filled: true,
-                    fillColor: Colors.black12,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.send_rounded),
-                    onPressed: () => Navigator.of(context).pop(true),
-                    label: const Text('報告する'),
-                  ),
-                ),
-                const SizedBox(height: 6),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -232,6 +321,7 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
             questId: quest.id,
             comment: commentController.text,
             reportLocation: pos == null ? null : LatLng(pos.latitude, pos.longitude),
+            imageBase64: imageBase64,
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -423,6 +513,8 @@ class _QuestCard extends StatelessWidget {
     required this.quest,
     required this.onAccept,
     required this.onReport,
+    required this.onViewReport,
+    required this.isRequester,
     this.distanceMeters,
     this.locationError,
   });
@@ -430,6 +522,8 @@ class _QuestCard extends StatelessWidget {
   final Quest quest;
   final VoidCallback onAccept;
   final VoidCallback onReport;
+  final VoidCallback onViewReport;
+  final bool isRequester;
   final int? distanceMeters;
   final String? locationError;
 
@@ -514,7 +608,17 @@ class _QuestCard extends StatelessWidget {
                   icon: Icon(isAccepted ? Icons.camera_alt_rounded : Icons.flash_on_rounded),
                   label: Text(isAccepted ? '写真を送る' : '受ける'),
                 ),
-              if (isCompleted) _CompletedLabel(colors: colors),
+              if (isCompleted && isRequester)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12),
+                  child: OutlinedButton.icon(
+                    onPressed: onViewReport,
+                    icon: const Icon(Icons.assignment_turned_in_outlined),
+                    label: const Text('成果を見る'),
+                  ),
+                )
+              else if (isCompleted)
+                _CompletedLabel(colors: colors),
             ],
           ),
         ],

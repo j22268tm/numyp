@@ -17,6 +17,7 @@ from r2_storage import get_r2_storage
 import base64
 from io import BytesIO
 import logging
+import math
 
 # 環境変数を読み込み
 load_dotenv()
@@ -120,6 +121,19 @@ def _upload_image_from_base64(image_base64: str, folder: str = "spots") -> str:
         raise HTTPException(status_code=500, detail="Failed to upload image") from None
 
 
+def _haversine_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> int:
+    """2座標間の距離(メートル)を計算"""
+    r = 6371000  # 地球半径(m)
+    d_lat = math.radians(lat2 - lat1)
+    d_lng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lng / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return int(r * c)
+
+
 def _spot_to_response(spot: models.Spot, include_description: bool = True) -> schemas.SpotResponse:
     """モデルからレスポンスモデルを生成"""
     return schemas.SpotResponse(
@@ -148,6 +162,53 @@ def _spot_to_response(spot: models.Spot, include_description: bool = True) -> sc
     )
 
 
+def _participant_to_response(participant: models.QuestParticipant) -> schemas.QuestParticipantResponse:
+    """クエスト参加者のレスポンスモデル変換"""
+    return schemas.QuestParticipantResponse(
+        id=participant.id,
+        status=schemas.QuestParticipantStatus(participant.status.value),
+        walker=schemas.AuthorInfo(
+            id=participant.walker.id,
+            username=participant.walker.username,
+            icon_url=participant.walker.icon_url,
+        ),
+        accepted_at=participant.accepted_at,
+        reported_at=participant.reported_at,
+        reward_paid_at=participant.reward_paid_at,
+        distance_at_accept_m=participant.distance_at_accept_m,
+        photo_url=participant.photo_url,
+        comment=participant.comment,
+        report_latitude=participant.report_latitude,
+        report_longitude=participant.report_longitude,
+    )
+
+
+def _quest_to_response(quest: models.Quest) -> schemas.QuestResponse:
+    """クエストモデルをレスポンス用に整形"""
+    return schemas.QuestResponse(
+        id=quest.id,
+        status=schemas.QuestStatus(quest.status.value),
+        created_at=quest.created_at,
+        expires_at=quest.expires_at,
+        accepted_at=quest.accepted_at,
+        completed_at=quest.completed_at,
+        expired_at=quest.expired_at,
+        location=schemas.LocationInfo(lat=quest.latitude, lng=quest.longitude),
+        radius_meters=quest.radius_meters,
+        title=quest.title,
+        description=quest.description,
+        bounty_coins=quest.bounty_coins,
+        locked_bounty_coins=quest.locked_bounty_coins,
+        requester=schemas.AuthorInfo(
+            id=quest.requester.id,
+            username=quest.requester.username,
+            icon_url=quest.requester.icon_url,
+        ),
+        active_participant_id=quest.active_participant_id,
+        participants=[_participant_to_response(p) for p in quest.participants],
+    )
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     """現在のユーザーを取得"""
     credentials_exception = HTTPException(
@@ -173,6 +234,27 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         username=user.username,
         icon_url=user.icon_url
     )
+
+
+def get_current_user_model(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.User:
+    """モデルのUserを返す版（クエスト系などで利用）"""
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception from None
+
+    user = crud.get_user_by_id(db, UUID(user_id))
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 # Endpoints
@@ -521,4 +603,193 @@ def buy_item(
         "message": f"Item {request.item_id} purchased!"
     }
 
+
+# Quests
+@app.get("/quests", response_model=List[schemas.QuestResponse])
+def list_quests(
+    _current_user: Annotated[schemas.AuthorInfo, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+):
+    """クエスト一覧を取得"""
+    quests = crud.list_quests(db)
+    return [_quest_to_response(q) for q in quests]
+
+
+@app.post("/quests", response_model=schemas.QuestResponse)
+def create_quest(
+    payload: schemas.QuestCreate,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+):
+    """新規クエストを作成"""
+    try:
+        quest = crud.create_quest(db, current_user.id, payload)
+        return _quest_to_response(quest)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    except Exception:
+        logger.exception("Failed to create quest")
+        raise HTTPException(status_code=500, detail="Failed to create quest") from None
+
+
+@app.post("/quests/{quest_id}/accept", response_model=schemas.QuestResponse)
+def accept_quest(
+    quest_id: UUID,
+    payload: schemas.QuestAcceptRequest,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+):
+    """クエストを受ける"""
+    distance = None
+    if payload.lat is not None and payload.lng is not None:
+        quest_for_distance = crud.get_quest_by_id(db, quest_id)
+        if quest_for_distance:
+            distance = _haversine_distance_m(
+                payload.lat,
+                payload.lng,
+                quest_for_distance.latitude,
+                quest_for_distance.longitude,
+            )
+
+    try:
+        quest = crud.accept_quest(
+            db,
+            quest_id=quest_id,
+            walker_id=current_user.id,
+            distance_at_accept_m=distance,
+        )
+        return _quest_to_response(quest)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Quest not found") from None
+    except Exception:
+        logger.exception("Failed to accept quest")
+        raise HTTPException(status_code=500, detail="Failed to accept quest") from None
+
+
+@app.post("/quests/{quest_id}/report", response_model=schemas.QuestResponse)
+def report_quest(
+    quest_id: UUID,
+    payload: schemas.QuestReportPayload,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+):
+    """ウォーカーの報告を登録"""
+    try:
+        if payload.image_base64:
+            uploaded_url = _upload_image_from_base64(payload.image_base64, folder="quest_reports")
+            payload = schemas.QuestReportPayload(
+                photo_url=uploaded_url,
+                comment=payload.comment,
+                latitude=payload.latitude,
+                longitude=payload.longitude,
+            )
+        quest = crud.submit_quest_report(
+            db,
+            quest_id=quest_id,
+            walker_id=current_user.id,
+            payload=payload,
+        )
+        return _quest_to_response(quest)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Quest not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="This quest was not accepted by this user") from None
+    except Exception:
+        logger.exception("Failed to submit quest report")
+        raise HTTPException(status_code=500, detail="Failed to submit report") from None
+
+
+@app.get("/quests/{quest_id}/completion-report", response_model=schemas.QuestCompletionReportResponse)
+def get_quest_completion_report(
+    quest_id: UUID,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+):
+    """発注者向け: クエスト成果報告画面用データを取得"""
+    try:
+        quest, participant = crud.get_quest_completion_report(db, quest_id=quest_id, requester_id=current_user.id)
+        report_location = None
+        if participant and participant.report_latitude is not None and participant.report_longitude is not None:
+            report_location = schemas.LocationInfo(lat=participant.report_latitude, lng=participant.report_longitude)
+
+        return schemas.QuestCompletionReportResponse(
+            quest_id=quest.id,
+            title=quest.title,
+            completed_at=quest.completed_at,
+            requester=schemas.AuthorInfo(
+                id=quest.requester.id,
+                username=quest.requester.username,
+                icon_url=quest.requester.icon_url,
+            ),
+            walker=(
+                schemas.AuthorInfo(
+                    id=participant.walker.id,
+                    username=participant.walker.username,
+                    icon_url=participant.walker.icon_url,
+                )
+                if participant and participant.walker
+                else None
+            ),
+            photo_url=participant.photo_url if participant else None,
+            comment=participant.comment if participant else None,
+            reported_at=participant.reported_at if participant else None,
+            report_location=report_location,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Quest not found") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden") from None
+    except Exception:
+        logger.exception("Failed to get quest completion report")
+        raise HTTPException(status_code=500, detail="Failed to get completion report") from None
+
+
+@app.get("/notifications", response_model=List[schemas.NotificationResponse])
+def list_notifications(
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+    unread_only: bool = Query(False),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """ユーザーの通知一覧を取得（クエスト完了通知など）"""
+    notifications = crud.list_notifications(db, user_id=current_user.id, limit=limit, unread_only=unread_only)
+    return [
+        schemas.NotificationResponse(
+            id=n.id,
+            type=schemas.NotificationType(n.type.value),
+            title=n.title,
+            body=n.body,
+            quest_id=n.quest_id,
+            created_at=n.created_at,
+            read_at=n.read_at,
+        )
+        for n in notifications
+    ]
+
+
+@app.post("/notifications/{notification_id}/read", response_model=schemas.NotificationResponse)
+def mark_notification_read(
+    notification_id: UUID,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+    db: Session = Depends(get_db),
+):
+    """通知を既読にする"""
+    try:
+        n = crud.mark_notification_read(db, notification_id=notification_id, user_id=current_user.id)
+        return schemas.NotificationResponse(
+            id=n.id,
+            type=schemas.NotificationType(n.type.value),
+            title=n.title,
+            body=n.body,
+            quest_id=n.quest_id,
+            created_at=n.created_at,
+            read_at=n.read_at,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Notification not found") from None
+    except Exception:
+        logger.exception("Failed to mark notification read")
+        raise HTTPException(status_code=500, detail="Failed to update notification") from None
+
 # uvicorn main:app --reload
+# uvicorn main:app --host 0.0.0.0 --port 8000

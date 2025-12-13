@@ -32,6 +32,10 @@ class QuestParticipantStatusEnum(str, enum.Enum):
     DECLINED = "declined"
 
 
+class NotificationTypeEnum(str, enum.Enum):
+    QUEST_COMPLETED = "quest_completed"
+
+
 # Models
 class User(Base):
     __tablename__ = "users"
@@ -51,6 +55,7 @@ class User(Base):
     owned_skins = relationship("UserSkin", back_populates="user")
     requested_quests = relationship("Quest", back_populates="requester", foreign_keys="Quest.requester_id")
     active_walks = relationship("QuestParticipant", back_populates="walker", foreign_keys="QuestParticipant.walker_id")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
 
 class Skin(Base):
@@ -113,7 +118,15 @@ class Quest(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     requester_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    active_participant_id = Column(UUID(as_uuid=True), ForeignKey("quest_participants.id"), nullable=True)
+    active_participant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "quest_participants.id",
+            name="fk_quests_active_participant_id",
+            use_alter=True,
+        ),
+        nullable=True,
+    )
 
     # Location
     latitude = Column(Float, nullable=False, index=True)
@@ -137,7 +150,13 @@ class Quest(Base):
     # Relationships
     requester = relationship("User", back_populates="requested_quests", foreign_keys=[requester_id])
     active_participant = relationship("QuestParticipant", foreign_keys=[active_participant_id], post_update=True)
-    participants = relationship("QuestParticipant", back_populates="quest", cascade="all, delete-orphan")
+    # Explicit foreign_keys avoids ambiguity with active_participant_id -> quest_participants.id
+    participants = relationship(
+        "QuestParticipant",
+        back_populates="quest",
+        cascade="all, delete-orphan",
+        foreign_keys="QuestParticipant.quest_id",
+    )
 
 
 class QuestParticipant(Base):
@@ -145,7 +164,11 @@ class QuestParticipant(Base):
     __table_args__ = (UniqueConstraint("quest_id", "walker_id", name="uq_quest_walker"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    quest_id = Column(UUID(as_uuid=True), ForeignKey("quests.id"), nullable=False)
+    quest_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("quests.id", name="fk_quest_participants_quest_id"),
+        nullable=False,
+    )
     walker_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     status = Column(SQLEnum(QuestParticipantStatusEnum), default=QuestParticipantStatusEnum.ACCEPTED, nullable=False, index=True)
@@ -161,5 +184,23 @@ class QuestParticipant(Base):
     report_longitude = Column(Float, nullable=True)
 
     # Relationships
-    quest = relationship("Quest", back_populates="participants")
+    quest = relationship("Quest", back_populates="participants", foreign_keys=[quest_id])
     walker = relationship("User", back_populates="active_walks", foreign_keys=[walker_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    quest_id = Column(UUID(as_uuid=True), ForeignKey("quests.id"), nullable=True, index=True)
+
+    type = Column(SQLEnum(NotificationTypeEnum), nullable=False, index=True)
+    title = Column(String(120), nullable=False)
+    body = Column(String(500), nullable=False)
+
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    read_at = Column(DateTime, nullable=True, index=True)
+
+    user = relationship("User", back_populates="notifications", foreign_keys=[user_id])
+    quest = relationship("Quest", foreign_keys=[quest_id])

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import and_
 from typing import Optional, List
+from datetime import datetime, timezone
 import models
 import schemas
 from uuid import UUID
@@ -314,3 +315,184 @@ def delete_spot(db: Session, spot_id: UUID, user_id: UUID) -> None:
 
     db.delete(db_spot)
     db.commit()
+
+
+# ===== Quest CRUD =====
+def _quest_query(db: Session):
+    """参加者・依頼者をまとめて取得するクエリヘルパー"""
+    return db.query(models.Quest).options(
+        selectinload(models.Quest.requester),
+        selectinload(models.Quest.participants).selectinload(models.QuestParticipant.walker),
+    )
+
+
+def list_quests(db: Session, limit: int = 100) -> List[models.Quest]:
+    """クエスト一覧取得（新しい順）"""
+    return (
+        _quest_query(db)
+        .order_by(models.Quest.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+def get_quest_by_id(db: Session, quest_id: UUID) -> Optional[models.Quest]:
+    """IDでクエストを取得"""
+    return _quest_query(db).filter(models.Quest.id == quest_id).first()
+
+
+def create_quest(db: Session, requester_id: UUID, payload: schemas.QuestCreate) -> models.Quest:
+    """新規クエスト作成"""
+    requester = get_user_by_id(db, requester_id)
+    if requester is None:
+        raise ValueError(f"requester {requester_id} not found")
+
+    quest = models.Quest(
+        requester_id=requester_id,
+        latitude=payload.lat,
+        longitude=payload.lng,
+        radius_meters=payload.radius_meters,
+        title=payload.title,
+        description=payload.description,
+        bounty_coins=payload.bounty_coins,
+        locked_bounty_coins=payload.bounty_coins,
+        expires_at=payload.expires_at,
+    )
+    db.add(quest)
+    db.commit()
+    db.refresh(quest)
+    return get_quest_by_id(db, quest.id)
+
+
+def accept_quest(
+    db: Session,
+    quest_id: UUID,
+    walker_id: UUID,
+    distance_at_accept_m: Optional[int] = None,
+) -> models.Quest:
+    """クエストを受注（参加者レコードを作成/更新）"""
+    quest = _quest_query(db).filter(models.Quest.id == quest_id).first()
+    if quest is None:
+        raise ValueError(f"Quest {quest_id} not found")
+
+    walker = get_user_by_id(db, walker_id)
+    if walker is None:
+        raise ValueError(f"walker {walker_id} not found")
+
+    now = datetime.now(timezone.utc)
+    participant = next((p for p in quest.participants if p.walker_id == walker_id), None)
+
+    if participant is None:
+        participant = models.QuestParticipant(
+            quest_id=quest.id,
+            walker_id=walker_id,
+            status=models.QuestParticipantStatusEnum.ACCEPTED,
+            accepted_at=now,
+            distance_at_accept_m=distance_at_accept_m,
+        )
+        db.add(participant)
+        db.flush()  # id採番
+        quest.participants.append(participant)
+    else:
+        participant.status = models.QuestParticipantStatusEnum.ACCEPTED
+        participant.accepted_at = now
+        participant.distance_at_accept_m = distance_at_accept_m
+        db.flush()
+
+    quest.status = models.QuestStatusEnum.ACCEPTED
+    quest.accepted_at = quest.accepted_at or now
+    quest.active_participant_id = participant.id
+
+    db.commit()
+    return get_quest_by_id(db, quest.id)
+
+
+def submit_quest_report(
+    db: Session,
+    quest_id: UUID,
+    walker_id: UUID,
+    payload: schemas.QuestReportPayload,
+) -> models.Quest:
+    """ウォーカーの報告を登録しクエストを完了扱いにする"""
+    quest = _quest_query(db).filter(models.Quest.id == quest_id).first()
+    if quest is None:
+        raise ValueError(f"Quest {quest_id} not found")
+
+    participant = next((p for p in quest.participants if p.walker_id == walker_id), None)
+    if participant is None:
+        raise PermissionError("This user has not accepted the quest")
+
+    now = datetime.now(timezone.utc)
+    participant.status = models.QuestParticipantStatusEnum.REPORTED
+    participant.reported_at = now
+    participant.photo_url = payload.photo_url
+    participant.comment = payload.comment
+    participant.report_latitude = payload.latitude
+    participant.report_longitude = payload.longitude
+
+    quest.status = models.QuestStatusEnum.COMPLETED
+    quest.completed_at = now
+
+    # 発注者へ完了通知（アプリ内通知）
+    if quest.requester_id != walker_id:
+        title = "クエストが完了しました"
+        walker_name = participant.walker.username if participant.walker else "ウォーカー"
+        body = f"「{quest.title}」に {walker_name} から報告が届きました。"
+        db.add(
+            models.Notification(
+                user_id=quest.requester_id,
+                quest_id=quest.id,
+                type=models.NotificationTypeEnum.QUEST_COMPLETED,
+                title=title,
+                body=body,
+            )
+        )
+
+    db.commit()
+    return get_quest_by_id(db, quest.id)
+
+
+def list_notifications(
+    db: Session,
+    user_id: UUID,
+    limit: int = 100,
+    unread_only: bool = False,
+) -> List[models.Notification]:
+    query = db.query(models.Notification).filter(models.Notification.user_id == user_id)
+    if unread_only:
+        query = query.filter(models.Notification.read_at.is_(None))
+    return query.order_by(models.Notification.created_at.desc()).limit(limit).all()
+
+
+def mark_notification_read(db: Session, notification_id: UUID, user_id: UUID) -> models.Notification:
+    notification = (
+        db.query(models.Notification)
+        .filter(and_(models.Notification.id == notification_id, models.Notification.user_id == user_id))
+        .first()
+    )
+    if notification is None:
+        raise ValueError("Notification not found")
+
+    if notification.read_at is None:
+        notification.read_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(notification)
+
+    return notification
+
+
+def get_quest_completion_report(
+    db: Session,
+    quest_id: UUID,
+    requester_id: UUID,
+) -> tuple[models.Quest, Optional[models.QuestParticipant]]:
+    quest = get_quest_by_id(db, quest_id)
+    if quest is None:
+        raise ValueError("Quest not found")
+    if quest.requester_id != requester_id:
+        raise PermissionError("Not quest requester")
+
+    participant = None
+    if quest.active_participant_id is not None:
+        participant = next((p for p in quest.participants if p.id == quest.active_participant_id), None)
+    return quest, participant

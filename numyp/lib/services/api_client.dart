@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../config/constants.dart';
+import '../models/quest.dart';
 import '../models/spot.dart';
 import '../models/user.dart';
+import '../models/app_notification.dart';
 
 class ApiClient {
   ApiClient({Dio? dio})
@@ -144,5 +147,106 @@ class ApiClient {
 
   Future<void> deleteSpot({required String token, required String id}) async {
     await _dio.delete('/spots/$id', options: _authOptions(token));
+  }
+
+  // --- Quests ---
+  Future<List<Quest>> fetchQuests({required String token}) async {
+    final response = await _dio.get('/quests', options: _authOptions(token));
+    final data = response.data as List<dynamic>;
+    return data
+        .map((item) => Quest.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Quest> createQuest({
+    required String token,
+    required String title,
+    required String description,
+    required LatLng location,
+    int radiusMeters = 200,
+    required int bountyCoins,
+    DateTime? expiresAt,
+  }) async {
+    final response = await _dio.post(
+      '/quests',
+      data: {
+        'title': title,
+        'description': description,
+        'lat': location.latitude,
+        'lng': location.longitude,
+        'radius_meters': radiusMeters,
+        'bounty_coins': bountyCoins,
+        'expires_at': expiresAt?.toIso8601String(),
+      },
+      options: _authOptions(token),
+    );
+
+    return Quest.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<Quest> acceptQuest({
+    required String token,
+    required String questId,
+    LatLng? currentLocation,
+  }) async {
+    final response = await _dio.post(
+      '/quests/$questId/accept',
+      data: {
+        'lat': currentLocation?.latitude,
+        'lng': currentLocation?.longitude,
+      }..removeWhere((_, value) => value == null),
+      options: _authOptions(token),
+    );
+
+    return Quest.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  Future<Quest> submitQuestReport({
+    required String token,
+    required String questId,
+    String? comment,
+    LatLng? reportLocation,
+    String? imageBase64,
+  }) async {
+    final response = await _dio.post(
+      '/quests/$questId/report',
+      data: {
+        'comment': comment,
+        'latitude': reportLocation?.latitude,
+        'longitude': reportLocation?.longitude,
+        'image_base64': imageBase64,
+      }..removeWhere((_, value) => value == null),
+      options: _authOptions(token),
+    );
+
+    return Quest.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  // --- Notifications ---
+  Future<List<AppNotification>> fetchNotifications({
+    required String token,
+    bool unreadOnly = false,
+    int limit = 100,
+  }) async {
+    final response = await _dio.get(
+      '/notifications',
+      queryParameters: {'unread_only': unreadOnly, 'limit': limit},
+      options: _authOptions(token),
+    );
+    final data = response.data as List<dynamic>;
+    return data
+        .map((item) => AppNotification.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<AppNotification> markNotificationRead({
+    required String token,
+    required String notificationId,
+  }) async {
+    final response = await _dio.post(
+      '/notifications/$notificationId/read',
+      options: _authOptions(token),
+    );
+    return AppNotification.fromJson(response.data as Map<String, dynamic>);
   }
 }
