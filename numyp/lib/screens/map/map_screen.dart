@@ -352,14 +352,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   /// マーカーアイコンをキャッシュとして読み込む
   Future<void> _loadUserLocationIcon() async {
-    final icon = await BitmapDescriptor.asset(
-      const ImageConfiguration(size: Size(100, 100)),
-      'assets/images/user_location_pin.png',
-    );
-    if (!mounted) return;
-    setState(() {
-      _userLocationIcon = icon;
-    });
+    try {
+      final icon = await BitmapDescriptor.asset(
+        const ImageConfiguration(size: Size(100, 100)),
+        'assets/images/user_location_pin.png',
+      );
+      if (!mounted) return;
+      setState(() {
+        _userLocationIcon = icon;
+      });
+    } catch (e) {
+      debugPrint('Failed to load user location icon: $e');
+      // アセットの読み込みに失敗した場合はデフォルトマーカーを使用
+      if (!mounted) return;
+      setState(() {
+        _userLocationIcon = BitmapDescriptor.defaultMarker;
+      });
+    }
   }
 
   /// マーカーセットを構築（ユーザー位置マーカーを追加）
