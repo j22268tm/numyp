@@ -373,10 +373,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   */
 
   /// 位置情報のリアルタイム監視を開始
-  void _startLocationTracking() {
+  void _startLocationTracking() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint('位置情報の権限拒否');
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever){
+      debugPrint("Location Permission DeniedForever");
+      return;
+    }
+
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 0, // 少しでも動いたら即座に反応
+      distanceFilter: 10,
     );
 
     _positionStreamSubscription =
