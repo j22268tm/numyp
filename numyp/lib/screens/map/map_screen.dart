@@ -11,11 +11,13 @@ import '../../config/theme.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/spot_providers.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/quest_provider.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/spot_detail_card.dart';
 import '../../widgets/spot_preview_card.dart';
 import '../mypage/mypage_screen.dart';
 import '../pin/pin_list_screen.dart';
+import '../pin/pin_form_screen.dart';
 import '../quest/quest_board_screen.dart';
 import '../shop/shop_screeen.dart';
 
@@ -33,6 +35,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   late final CameraPosition _initialCameraPosition;
   String? _darkMapStyle;
   String? _lightMapStyle;
+  final GlobalKey _mapKey = GlobalKey();
 
   int _currentIndex = 0;
 
@@ -118,7 +121,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildMapView(BuildContext context) {
     final spotsAsync = ref.watch(spotsControllerProvider);
-    final markers = ref.watch(markerProvider);
+    final spotMarkers = ref.watch(markerProvider);
+    final questMarkers = ref.watch(questMarkerProvider);
+    final markers = {...spotMarkers, ...questMarkers};
     final selectedSpot = ref.watch(selectedSpotProvider);
 
     final user = ref.watch(authProvider).user;
@@ -128,30 +133,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     return Stack(
       children: [
-        GoogleMap(
-          // Cloud Map Styling works only with the normal map type.
-          mapType: MapType.normal,
-          initialCameraPosition: _initialCameraPosition,
-          onMapCreated: (GoogleMapController controller) {
-            _mapController?.dispose();
-            _mapController = controller;
-            _applyMapStyle(ref.read(themeModeProvider));
-          },
-          onCameraMoveStarted: () {
-            // プログラマティックなカメラ変更の場合はスキップ
-            if (_isProgrammaticCameraChange) return;
-            // ユーザーが手動で地図を操作した場合、追従モードを解除
-            if (_isTrackingMode) {
-              setState(() {
-                _isTrackingMode = false;
-              });
-            }
-          },
-          zoomControlsEnabled: false,
-          mapToolbarEnabled: false,
-          myLocationButtonEnabled: false,
-          myLocationEnabled: true, // デフォルトの青い点で現在地と方向を表示
-          markers: markers,
+        SizedBox(
+          key: _mapKey,
+          child: GoogleMap(
+            // Cloud Map Styling works only with the normal map type.
+            mapType: MapType.normal,
+            initialCameraPosition: _initialCameraPosition,
+            onMapCreated: (GoogleMapController controller) {
+              _mapController?.dispose();
+              _mapController = controller;
+              _applyMapStyle(ref.read(themeModeProvider));
+            },
+            onLongPress: (latLng) => _onMapLongPress(context, latLng),
+            onCameraMoveStarted: () {
+              // プログラマティックなカメラ変更の場合はスキップ
+              if (_isProgrammaticCameraChange) return;
+              // ユーザーが手動で地図を操作した場合、追従モードを解除
+              if (_isTrackingMode) {
+                setState(() {
+                  _isTrackingMode = false;
+                });
+              }
+            },
+            zoomControlsEnabled: false,
+            mapToolbarEnabled: false,
+            myLocationButtonEnabled: false,
+            myLocationEnabled: true, // デフォルトの青い点で現在地と方向を表示
+            markers: markers,
+          ),
         ),
 
         // 上部ステータスバー
@@ -521,7 +530,206 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final style = mode == ThemeMode.dark ? _darkMapStyle : _lightMapStyle;
     await controller.setMapStyle(style);
   }
+
+  Future<void> _onMapLongPress(BuildContext context, LatLng latLng) async {
+    final controller = _mapController;
+    final mapContext = _mapKey.currentContext;
+    if (controller == null || mapContext == null) return;
+
+    ref.read(selectedSpotProvider.notifier).state = null;
+
+    final overlay = Overlay.of(context);
+    final overlayBox = overlay.context.findRenderObject() as RenderBox?;
+    if (overlayBox == null) return;
+
+    final screen = await controller.getScreenCoordinate(latLng);
+    if (!context.mounted) return;
+
+    final mapBox = mapContext.findRenderObject() as RenderBox?;
+    if (mapBox == null) return;
+
+    final global = mapBox.localToGlobal(
+      Offset(screen.x.toDouble(), screen.y.toDouble()),
+    );
+    final overlaySize = overlayBox.size;
+
+    final selection = await showMenu<_MapLongPressAction>(
+      context: context,
+      color: AppColors.of(context).cardSurface.withValues(alpha: 0.95),
+      position: RelativeRect.fromLTRB(
+        global.dx,
+        global.dy,
+        overlaySize.width - global.dx,
+        overlaySize.height - global.dy,
+      ),
+      items: const [
+        PopupMenuItem(
+          value: _MapLongPressAction.createSpot,
+          child: Row(
+            children: [
+              Icon(Icons.push_pin, size: 18),
+              SizedBox(width: 10),
+              Text('ピンの新規作成'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: _MapLongPressAction.createQuest,
+          child: Row(
+            children: [
+              Icon(Icons.add_task_rounded, size: 18),
+              SizedBox(width: 10),
+              Text('クエストの新規発注'),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (!context.mounted || selection == null) return;
+
+    switch (selection) {
+      case _MapLongPressAction.createSpot:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SpotFormScreen(initialLocation: latLng),
+          ),
+        );
+        break;
+      case _MapLongPressAction.createQuest:
+        await _openQuestCreateSheet(context, latLng);
+        break;
+    }
+  }
+
+  Future<void> _openQuestCreateSheet(BuildContext context, LatLng location) async {
+    final colors = AppColors.of(context);
+
+    if (ref.read(authProvider).user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ログインしてください')),
+      );
+      return;
+    }
+
+    final titleController = TextEditingController();
+    final detailController = TextEditingController();
+    final bountyController = TextEditingController(text: '10');
+
+    try {
+      final shouldCreate = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: colors.midnightBackground,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+        ),
+        builder: (ctx) {
+          final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'クエスト新規発注',
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      icon: Icon(Icons.close, color: colors.textSecondary),
+                    ),
+                  ],
+                ),
+                Text(
+                  'この位置にクエストピンを立てます',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}',
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: titleController,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: '依頼タイトル',
+                    labelStyle: TextStyle(color: colors.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: detailController,
+                  maxLines: 2,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: '依頼内容の詳細',
+                    labelStyle: TextStyle(color: colors.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: bountyController,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: colors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: '懸賞金（コイン）',
+                    labelStyle: TextStyle(color: colors.textSecondary),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.place_outlined),
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    label: const Text('この場所に発注する'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (shouldCreate == true) {
+        final bounty = int.tryParse(bountyController.text) ?? 10;
+        await ref.read(questControllerProvider.notifier).createQuest(
+              title: titleController.text.isEmpty ? '新しい依頼' : titleController.text,
+              description: detailController.text.isEmpty ? 'ウォーカーに状況を確認してほしい' : detailController.text,
+              location: location,
+              bountyCoins: bounty,
+            );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('調査依頼ピンを作成しました')),
+          );
+        }
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('作成に失敗しました: $e')),
+      );
+    } finally {
+      titleController.dispose();
+      detailController.dispose();
+      bountyController.dispose();
+    }
+  }
 }
+
+enum _MapLongPressAction { createSpot, createQuest }
 
 class _StatusBubble extends StatelessWidget {
   const _StatusBubble({required this.icon, required this.text, this.onTap});

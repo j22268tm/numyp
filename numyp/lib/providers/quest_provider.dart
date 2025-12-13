@@ -102,3 +102,34 @@ class QuestController extends AsyncNotifier<List<Quest>> {
 
 final questControllerProvider =
     AsyncNotifierProvider<QuestController, List<Quest>>(QuestController.new);
+
+final questMarkerProvider = Provider<Set<Marker>>((ref) {
+  final user = ref.watch(authProvider).user;
+  if (user == null) return <Marker>{};
+
+  final questsAsync = ref.watch(questControllerProvider);
+  return questsAsync.maybeWhen(
+    data: (quests) {
+      return quests.map((quest) {
+        final hue = switch (quest.status) {
+          QuestStatus.open => BitmapDescriptor.hueViolet,
+          QuestStatus.accepted => BitmapDescriptor.hueAzure,
+          QuestStatus.completed => BitmapDescriptor.hueGreen,
+          QuestStatus.expired => BitmapDescriptor.hueRose,
+          QuestStatus.cancelled => BitmapDescriptor.hueRed,
+        };
+
+        return Marker(
+          markerId: MarkerId('quest:${quest.id}'),
+          position: quest.location,
+          icon: BitmapDescriptor.defaultMarkerWithHue(hue),
+          infoWindow: InfoWindow(
+            title: 'クエスト: ${quest.title}',
+            snippet: '報酬 ${quest.bountyCoins} coins',
+          ),
+        );
+      }).toSet();
+    },
+    orElse: () => <Marker>{},
+  );
+});
