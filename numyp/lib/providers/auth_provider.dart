@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/constants.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 import 'api_client_provider.dart';
@@ -121,6 +122,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void logout() {
     state = const AuthState();
+  }
+
+  /// デバッグモード用の自動ログイン
+  void loginAsDebugUser() {
+    debugPrint('=== デバッグモード: 自動ログイン ===');
+    final debugUser = AppUser(
+      id: 'debug-user-id',
+      username: AppConstants.debugUsername,
+      accessToken: 'debug-token',
+      coins: 0,
+    );
+    state = AuthState(user: debugUser, isLoading: false);
+    debugPrint('デバッグユーザーでログイン完了');
   }
 }
 
