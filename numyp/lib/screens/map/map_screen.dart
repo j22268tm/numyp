@@ -8,7 +8,6 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../config/constants.dart';
 import '../../config/theme.dart';
-import '../../models/spot.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/spot_providers.dart';
 import '../../providers/auth_provider.dart';
@@ -270,7 +269,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             children: [
               FloatingActionButton(
                 heroTag: 'refresh',
-                backgroundColor: colors.cardSurface.withOpacity(0.85),
+                backgroundColor: colors.cardSurface.withValues(alpha: 0.85),
                 onPressed: () =>
                     ref.read(spotsControllerProvider.notifier).refreshSpots(),
                 child: Icon(Icons.refresh, color: colors.magicGold),
@@ -279,8 +278,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               FloatingActionButton(
                 heroTag: 'location',
                 backgroundColor: _isTrackingMode
-                    ? colors.magicGold.withOpacity(0.9)
-                    : colors.cardSurface.withOpacity(0.85),
+                    ? colors.magicGold.withValues(alpha: 0.9)
+                    : colors.cardSurface.withValues(alpha: 0.85),
                 onPressed: _goToCurrentLocation,
                 child: Icon(
                   Icons.my_location,
@@ -301,7 +300,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: colors.cardSurface.withOpacity(0.5),
+        color: colors.cardSurface.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
@@ -326,7 +325,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: colors.fantasyPurple.withOpacity(0.3),
+        color: colors.fantasyPurple.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white10),
       ),
