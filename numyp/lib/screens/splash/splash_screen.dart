@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
-import '../auth/auth_screen.dart';
-import '../map/map_screen.dart';
 import '../../config/theme.dart';
-import '../../providers/auth_provider.dart';
 
 /// アプリ起動時のロゴムービースプラッシュ画面
 class SplashScreen extends ConsumerStatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, required this.onFinished});
+
+  final VoidCallback onFinished;
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -18,6 +17,7 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
+  bool _hasFinished = false;
 
   @override
   void initState() {
@@ -45,42 +45,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       _controller.addListener(_videoListener);
     } catch (e) {
       debugPrint('動画の初期化エラー: $e');
-      // エラーが発生した場合は即座に画面遷移
-      _navigateToHome();
+      // エラーが発生した場合は即座に終了扱い
+      _finish();
     }
   }
 
   /// 動画の再生状態を監視
   void _videoListener() {
     if (_controller.value.position >= _controller.value.duration) {
-      // 再生終了したら画面遷移
-      _navigateToHome();
+      // 再生終了したら終了扱い
+      _finish();
     }
   }
 
-  /// 認証状態に基づいて適切な画面へ遷移
-  void _navigateToHome() {
-    if (!mounted) return;
-
-    // リスナーを削除
-    _controller.removeListener(_videoListener);
-
-    // 認証状態を確認
-    final authState = ref.read(authProvider);
-
-    // 認証済みならMapScreen、未認証ならAuthScreenへ遷移
-    final destination = authState.user != null
-        ? const MapScreen()
-        : const AuthScreen();
-
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (context) => destination));
+  void _finish() {
+    if (_hasFinished) return;
+    _hasFinished = true;
+    if (_isInitialized) {
+      _controller.removeListener(_videoListener);
+    }
+    widget.onFinished();
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_videoListener);
+    if (_isInitialized) {
+      _controller.removeListener(_videoListener);
+    }
     _controller.dispose();
     super.dispose();
   }

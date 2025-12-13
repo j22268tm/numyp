@@ -5,6 +5,8 @@ import 'config/constants.dart';
 import 'config/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'screens/auth/auth_screen.dart';
+import 'screens/map/map_screen.dart';
 import 'screens/splash/splash_screen.dart';
 
 void main() async {
@@ -18,42 +20,12 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends ConsumerStatefulWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  ConsumerState<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends ConsumerState<MyApp> {
-  bool _hasTriedDebugLogin = false;
-  bool _hasTriedSessionRestore = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-
-    // セッション復元を試行（一度だけ実行）
-    if (authState.user == null &&
-        !authState.isLoading &&
-        !_hasTriedSessionRestore) {
-      _hasTriedSessionRestore = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await ref.read(authProvider.notifier).restoreSession();
-
-        // セッション復元に失敗し、デバッグモードの場合は自動ログイン
-        if (mounted) {
-          final currentState = ref.read(authProvider);
-          if (AppConstants.isDebugMode &&
-              currentState.user == null &&
-              !_hasTriedDebugLogin) {
-            _hasTriedDebugLogin = true;
-            ref.read(authProvider.notifier).loginAsDebugUser();
-          }
-        }
-      });
-    }
 
     return MaterialApp(
       title: 'numyp',
@@ -61,7 +33,61 @@ class _MyAppState extends ConsumerState<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      home: const SplashScreen(), // スプラッシュ画面から開始
+      home: const _AppEntry(),
     );
+  }
+}
+
+/// アプリ起動直後の初期化と画面出し分けを一元化するルート。
+/// - まずSplash(動画)を表示
+/// - 同時にセッション復元を実行
+/// - Splash終了 + セッション復元完了後、auth状態で Auth/Map を出し分け
+class _AppEntry extends ConsumerStatefulWidget {
+  const _AppEntry();
+
+  @override
+  ConsumerState<_AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends ConsumerState<_AppEntry> {
+  bool _splashFinished = false;
+  bool _didBootstrap = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_bootstrapAuth);
+  }
+
+  Future<void> _bootstrapAuth() async {
+    if (_didBootstrap) return;
+    _didBootstrap = true;
+
+    await ref.read(authProvider.notifier).restoreSession();
+
+    final authState = ref.read(authProvider);
+    if (authState.user == null && AppConstants.isDebugMode) {
+      ref.read(authProvider.notifier).loginAsDebugUser();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
+    // 初回起動時のみSplashを表示（logout/loginなどでは表示しない）
+    if (!_splashFinished || !authState.hasRestoredSession) {
+      return SplashScreen(
+        key: const ValueKey('splash'),
+        onFinished: () {
+          if (!mounted) return;
+          setState(() {
+            _splashFinished = true;
+          });
+        },
+      );
+    }
+
+    return authState.user != null ? const MapScreen() : const AuthScreen();
   }
 }
