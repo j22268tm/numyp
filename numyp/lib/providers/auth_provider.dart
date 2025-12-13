@@ -100,11 +100,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final user = await _client.fetchCurrentUser(token);
       debugPrint('ユーザー情報取得成功: ${user.username}');
       
-      // セッショントークンを保存
-      await _sessionStorage.saveToken(token);
-      debugPrint('セッショントークンを保存しました');
-      
+      // 状態を更新
       state = AuthState(user: user, isLoading: false);
+      
+      // セッショントークンを保存（状態更新後）
+      // 保存に失敗してもログインは成功として扱う
+      try {
+        await _sessionStorage.saveToken(token);
+        debugPrint('セッショントークンを保存しました');
+      } catch (e) {
+        debugPrint('トークン保存エラー（ログインは成功）: $e');
+      }
     } on DioException catch (e) {
       debugPrint('=== DioException発生(ログイン) ===');
       debugPrint('ステータスコード: ${e.response?.statusCode}');
@@ -170,6 +176,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   /// デバッグモード用の自動ログイン
+  /// 注: デバッグトークンは永続化されません。アプリ起動時に毎回自動ログインされます。
   void loginAsDebugUser() {
     debugPrint('=== デバッグモード: 自動ログイン ===');
     final debugUser = AppUser(
