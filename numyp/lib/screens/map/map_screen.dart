@@ -14,6 +14,7 @@ import '../../widgets/spot_detail_card.dart';
 import '../../widgets/spot_preview_card.dart';
 import '../mypage/mypage_screen.dart';
 import '../pin/pin_list_screen.dart';
+import '../shop/shop_screeen.dart';
 
 /// メイン地図画面
 /// APIから取得したスポットを表示し、選択できる
@@ -67,10 +68,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         body = const PinListScreen();
         break;
       case 2:
-        // TODO: Shop画面を実装
-        body = const Center(
-          child: Text('Shop画面(未実装)', style: TextStyle(color: Colors.white)),
-        );
+        body = const ShopScreen();
         break;
       default:
         body = const MyPageScreen();
