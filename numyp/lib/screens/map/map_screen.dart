@@ -458,6 +458,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
+
+      if (!mounted) return;
       final currentLatLng = LatLng(position.latitude, position.longitude);
 
       setState(() {
