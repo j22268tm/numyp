@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -13,6 +13,23 @@ class CrowdLevelEnum(str, enum.Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+
+
+class QuestStatusEnum(str, enum.Enum):
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class QuestParticipantStatusEnum(str, enum.Enum):
+    INVITED = "invited"
+    ACCEPTED = "accepted"
+    REPORTED = "reported"
+    SETTLED = "settled"
+    EXPIRED = "expired"
+    DECLINED = "declined"
 
 
 # Models
@@ -32,6 +49,8 @@ class User(Base):
     current_skin = relationship("Skin", foreign_keys=[current_skin_id])
     spots = relationship("Spot", back_populates="author")
     owned_skins = relationship("UserSkin", back_populates="user")
+    requested_quests = relationship("Quest", back_populates="requester", foreign_keys="Quest.requester_id")
+    active_walks = relationship("QuestParticipant", back_populates="walker", foreign_keys="QuestParticipant.walker_id")
 
 
 class Skin(Base):
@@ -87,3 +106,60 @@ class Spot(Base):
     # Relationships
     author = relationship("User", back_populates="spots")
     skin = relationship("Skin")
+
+
+class Quest(Base):
+    __tablename__ = "quests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    requester_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    active_participant_id = Column(UUID(as_uuid=True), ForeignKey("quest_participants.id"), nullable=True)
+
+    # Location
+    latitude = Column(Float, nullable=False, index=True)
+    longitude = Column(Float, nullable=False, index=True)
+    radius_meters = Column(Integer, default=200, nullable=False)
+
+    # Content and reward
+    title = Column(String(80), nullable=False)
+    description = Column(String(500), nullable=True)
+    bounty_coins = Column(Integer, nullable=False)
+    locked_bounty_coins = Column(Integer, default=0, nullable=False)
+
+    # Status and lifecycle
+    status = Column(SQLEnum(QuestStatusEnum), default=QuestStatusEnum.OPEN, nullable=False, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    accepted_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    expired_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    requester = relationship("User", back_populates="requested_quests", foreign_keys=[requester_id])
+    active_participant = relationship("QuestParticipant", foreign_keys=[active_participant_id], post_update=True)
+    participants = relationship("QuestParticipant", back_populates="quest", cascade="all, delete-orphan")
+
+
+class QuestParticipant(Base):
+    __tablename__ = "quest_participants"
+    __table_args__ = (UniqueConstraint("quest_id", "walker_id", name="uq_quest_walker"),)
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    quest_id = Column(UUID(as_uuid=True), ForeignKey("quests.id"), nullable=False)
+    walker_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    status = Column(SQLEnum(QuestParticipantStatusEnum), default=QuestParticipantStatusEnum.ACCEPTED, nullable=False, index=True)
+    accepted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    reported_at = Column(DateTime, nullable=True)
+    reward_paid_at = Column(DateTime, nullable=True)
+    distance_at_accept_m = Column(Integer, nullable=True)
+
+    # Report payload
+    photo_url = Column(String(500), nullable=True)
+    comment = Column(String(500), nullable=True)
+    report_latitude = Column(Float, nullable=True)
+    report_longitude = Column(Float, nullable=True)
+
+    # Relationships
+    quest = relationship("Quest", back_populates="participants")
+    walker = relationship("User", back_populates="active_walks", foreign_keys=[walker_id])

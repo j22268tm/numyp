@@ -12,6 +12,23 @@ class CrowdLevel(str, Enum):
     HIGH = "high"     # 混んでる
 
 
+class QuestStatus(str, Enum):
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class QuestParticipantStatus(str, Enum):
+    INVITED = "invited"
+    ACCEPTED = "accepted"
+    REPORTED = "reported"
+    SETTLED = "settled"
+    EXPIRED = "expired"
+    DECLINED = "declined"
+
+
 # ネスト用 拡張性優先のためclass乱立してます
 class LocationInfo(BaseModel):
     lat: float = Field(..., description="Latitude")
@@ -108,6 +125,64 @@ class CheckinResponse(BaseModel):
     message: str
     earned_coins: int
     current_balance: int
+
+
+# Quest feature
+class QuestReportPayload(BaseModel):
+    photo_url: Optional[str] = None
+    comment: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
+class QuestParticipantResponse(BaseModel):
+    id: UUID
+    status: QuestParticipantStatus
+    walker: AuthorInfo
+    accepted_at: datetime
+    reported_at: Optional[datetime] = None
+    reward_paid_at: Optional[datetime] = None
+    distance_at_accept_m: Optional[int] = None
+    photo_url: Optional[str] = None
+    comment: Optional[str] = None
+    report_latitude: Optional[float] = None
+    report_longitude: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuestCreate(BaseModel):
+    lat: float
+    lng: float
+    radius_meters: int = Field(200, gt=0, description="Meters from the quest pin to be considered nearby")
+    title: str = Field(..., min_length=1, max_length=80)
+    description: Optional[str] = Field(None, max_length=500)
+    bounty_coins: int = Field(..., ge=1, description="Coins to lock as bounty")
+    expires_at: Optional[datetime] = None
+
+
+class QuestResponse(BaseModel):
+    id: UUID
+    status: QuestStatus
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    accepted_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    expired_at: Optional[datetime] = None
+
+    # Grouping
+    location: LocationInfo
+    radius_meters: int
+    title: str
+    description: Optional[str] = None
+    bounty_coins: int
+    locked_bounty_coins: int
+    requester: AuthorInfo
+    active_participant_id: Optional[UUID] = None
+    participants: List[QuestParticipantResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class Token(BaseModel):
     access_token: str
