@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,8 +55,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   @override
-  Future<void> dispose() async {
-    await _positionStreamSubscription?.cancel();
+  // Future<void> dispose() async {
+  void dispose() {
+    unawaited(_positionStreamSubscription?.cancel());
     _mapController?.dispose();
     super.dispose();
   }
