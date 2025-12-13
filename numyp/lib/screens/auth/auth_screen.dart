@@ -44,9 +44,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         children: [
           // Background Image
           Positioned.fill(
-            child: Image.asset(
-              'assets/images/auth_background.jpeg',
-              fit: BoxFit.cover,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/auth_background.jpg'),
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
           // Dark Overlay
