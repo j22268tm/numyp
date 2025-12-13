@@ -19,16 +19,27 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  bool _hasTriedDebugLogin = false;
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final themeMode = ref.watch(themeModeProvider);
 
-    // デバッグモードの場合、自動ログイン
-    if (AppConstants.isDebugMode && authState.user == null && !authState.isLoading) {
+    // デバッグモードの場合、自動ログイン（一度だけ実行）
+    if (AppConstants.isDebugMode && 
+        authState.user == null && 
+        !authState.isLoading && 
+        !_hasTriedDebugLogin) {
+      _hasTriedDebugLogin = true;
       // フレーム後に実行（ビルド中の状態変更を避けるため）
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(authProvider.notifier).loginAsDebugUser();

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/constants.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 import 'api_client_provider.dart';
@@ -128,7 +129,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     debugPrint('=== デバッグモード: 自動ログイン ===');
     final debugUser = AppUser(
       id: 'debug-user-id',
-      username: 'testuser',
+      username: AppConstants.debugUsername,
       accessToken: 'debug-token',
       coins: 0,
     );
