@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,29 +11,18 @@ class AuthScreen extends ConsumerStatefulWidget {
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends ConsumerState<AuthScreen>
-    with SingleTickerProviderStateMixin {
+class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
   bool _isLogin = true;
   bool _obscurePassword = true;
-  late final AnimationController _bgController;
-
-  @override
-  void initState() {
-    super.initState();
-    _bgController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10),
-    )..repeat();
-  }
 
   @override
   void dispose() {
     _passwordController.dispose();
     _usernameController.dispose();
-    _bgController.dispose();
+
     super.dispose();
   }
 
@@ -53,87 +40,60 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     });
 
     return Scaffold(
-      body: AnimatedBuilder(
-        animation: _bgController,
-        builder: (context, _) {
-          final t = _bgController.value * 2 * pi;
-          final alignStart = Alignment(
-            -0.8 + 0.6 * sin(t),
-            -1.0 + 0.5 * cos(t * 0.8),
-          );
-          final alignEnd = Alignment(
-            0.8 * cos(t * 0.9),
-            1.0 + 0.4 * sin(t * 1.1),
-          );
-
-          const auroraBase = Color(0xFF0B1026);
-          final gradientColors = [
-            auroraBase,
-            const Color(0xFF12395F),
-            const Color(0xFF6A5AF9),
-            const Color(0xFF1DD4A4),
-            const Color(0xFFFF7FCF).withAlpha(200),
-          ];
-
-          return Stack(
-            children: [
-              // Animated gradient background
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: gradientColors,
-                    begin: alignStart,
-                    end: alignEnd,
-                    stops: const [0.0, 0.3, 0.55, 0.78, 1.0],
-                  ),
+      body: Stack(
+        children: [
+          // Background Image
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/auth_background.jpg'),
+                  fit: BoxFit.cover,
                 ),
               ),
-              // Content
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 48,
-                ),
-                child: SafeArea(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'numip',
-                            style: TextStyle(
-                              fontSize: 36,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _isLogin ? 'ユーザー名でログイン' : '新規登録してはじめる',
-                            style: TextStyle(color: colors.textSecondary),
-                          ),
-                          const SizedBox(height: 32),
-                          _buildForm(context, authState.isLoading),
-                          const SizedBox(height: 24),
-                          TextButton(
-                            onPressed: authState.isLoading
-                                ? null
-                                : () => setState(() => _isLogin = !_isLogin),
-                            child: Text(
-                              _isLogin ? 'アカウントをお持ちでない方はこちら' : 'すでにアカウントをお持ちの方',
-                              style: TextStyle(color: colors.magicGold),
-                            ),
-                          ),
-                        ],
+            ),
+          ),
+          // Dark Overlay
+          Positioned.fill(child: Container(color: Colors.black.withAlpha(128))),
+          // Content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+              child: SafeArea(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'numyp',
+                      style: TextStyle(
+                        fontSize: 36,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isLogin ? 'ユーザー名でログイン' : '新規登録してはじめる',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: 32),
+                    _buildForm(context, authState.isLoading),
+                    const SizedBox(height: 24),
+                    TextButton(
+                      onPressed: authState.isLoading
+                          ? null
+                          : () => setState(() => _isLogin = !_isLogin),
+                      child: Text(
+                        _isLogin ? 'アカウントをお持ちでない方はこちら' : 'すでにアカウントをお持ちの方',
+                        style: TextStyle(color: colors.magicGold),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }

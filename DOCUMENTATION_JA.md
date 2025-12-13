@@ -39,6 +39,7 @@
 
 ## 環境設定
 - フロントエンド: `numyp/env.json` を用意し、`API_BASE_URL` と `GMAP_API_KEY` を設定する。`flutter pub get` 後に `flutter run` で起動。【F:numyp/lib/config/constants.dart†L4-L32】
+  - デバッグモード: `env.json` に `"DEBUG": true` を設定すると、ログイン画面をスキップして自動的にテストユーザー（testuser/testpass）でログインする。開発時のみ使用し、本番環境では必ず `false` にすること。
 - バックエンド: `backend/.env` に DB 接続、JWT `SECRET_KEY`、Cloudflare R2 の各種キーを設定し、`pip install -r requirements.txt` で依存を導入する。必要に応じて `python test_r2.py` で R2 接続を検証。【F:backend/readme.md†L1-L48】
 
 ## 現状のユースケース例
