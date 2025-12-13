@@ -29,6 +29,10 @@ class QuestParticipantStatus(str, Enum):
     DECLINED = "declined"
 
 
+class NotificationType(str, Enum):
+    QUEST_COMPLETED = "quest_completed"
+
+
 # ネスト用 拡張性優先のためclass乱立してます
 class LocationInfo(BaseModel):
     lat: float = Field(..., description="Latitude")
@@ -130,9 +134,15 @@ class CheckinResponse(BaseModel):
 # Quest feature
 class QuestReportPayload(BaseModel):
     photo_url: Optional[str] = None
+    image_base64: Optional[str] = Field(None, description="Base64 encoded image string (quest report photo)")
     comment: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+
+
+class QuestAcceptRequest(BaseModel):
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class QuestParticipantResponse(BaseModel):
@@ -187,3 +197,29 @@ class QuestResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+class NotificationResponse(BaseModel):
+    id: UUID
+    type: NotificationType
+    title: str
+    body: str
+    quest_id: Optional[UUID] = None
+    created_at: datetime
+    read_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QuestCompletionReportResponse(BaseModel):
+    quest_id: UUID
+    title: str
+    completed_at: Optional[datetime] = None
+
+    requester: AuthorInfo
+    walker: Optional[AuthorInfo] = None
+
+    photo_url: Optional[str] = None
+    comment: Optional[str] = None
+    reported_at: Optional[datetime] = None
+    report_location: Optional[LocationInfo] = None
