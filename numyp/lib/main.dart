@@ -28,21 +28,31 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> {
   bool _hasTriedDebugLogin = false;
+  bool _hasTriedSessionRestore = false;
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final themeMode = ref.watch(themeModeProvider);
 
-    // デバッグモードの場合、自動ログイン（一度だけ実行）
-    if (AppConstants.isDebugMode && 
-        authState.user == null && 
+    // セッション復元を試行（一度だけ実行）
+    if (authState.user == null && 
         !authState.isLoading && 
-        !_hasTriedDebugLogin) {
-      _hasTriedDebugLogin = true;
-      // フレーム後に実行（ビルド中の状態変更を避けるため）
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(authProvider.notifier).loginAsDebugUser();
+        !_hasTriedSessionRestore) {
+      _hasTriedSessionRestore = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await ref.read(authProvider.notifier).restoreSession();
+        
+        // セッション復元に失敗し、デバッグモードの場合は自動ログイン
+        if (mounted) {
+          final currentState = ref.read(authProvider);
+          if (AppConstants.isDebugMode && 
+              currentState.user == null && 
+              !_hasTriedDebugLogin) {
+            _hasTriedDebugLogin = true;
+            ref.read(authProvider.notifier).loginAsDebugUser();
+          }
+        }
       });
     }
 
