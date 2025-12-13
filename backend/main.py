@@ -44,8 +44,8 @@ app = FastAPI(
 # ハッカソン用,開発環境のオリジンを許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
-    # allow_origins=["*"], # for debug
+    # allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],
+    allow_origins=["*"], # for debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -16,6 +16,7 @@ import '../../widgets/spot_detail_card.dart';
 import '../../widgets/spot_preview_card.dart';
 import '../mypage/mypage_screen.dart';
 import '../pin/pin_list_screen.dart';
+import '../quest/quest_board_screen.dart';
 import '../shop/shop_screeen.dart';
 
 /// メイン地図画面
@@ -76,13 +77,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         body = _buildMapView(context);
         break;
       case 1:
-        body = const PinListScreen();
+        body = const QuestBoardScreen();
         break;
       case 2:
+        body = const PinListScreen();
+        break;
+      case 3:
         body = const ShopScreen();
         break;
-      default:
+      case 4:
         body = const MyPageScreen();
+        break;
+      default:
+        body = _buildMapView(context);
         break;
     }
 
@@ -100,11 +107,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'map'),
+          BottomNavigationBarItem(icon: Icon(Icons.emergency_recording), label: 'quests'),
           BottomNavigationBarItem(icon: Icon(Icons.push_pin), label: 'spots'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_bag),
-            label: 'shop',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_bag), label: 'shop'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'mypage'),
         ],
       ),
