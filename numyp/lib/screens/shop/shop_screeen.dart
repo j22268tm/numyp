@@ -26,64 +26,47 @@ class ShopScreen extends ConsumerWidget {
     ];
 
     return Scaffold(
-      backgroundColor: colors.midnightBackground,
+      backgroundColor: Colors.grey[300],
       appBar: AppBar(
-        title: const Text('ショップ'),
-        backgroundColor: colors.midnightBackground,
-        foregroundColor: colors.textPrimary,
+        title: Text(
+          'ショップ',
+          style: TextStyle(
+            color: colors.magicGold,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: const Color(0xFF1C1C1C),
+        foregroundColor: Colors.black,
         elevation: 0,
-      ),
-      body: Column(
-        children: [
-          // コイン残高表示セクション
+        actions: [
           Container(
-            width: double.infinity,
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(20),
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colors.fantasyPurple.withValues(alpha: 0.3),
-                  colors.magicGold.withValues(alpha: 0.2),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colors.magicGold.withValues(alpha: 0.3),
-              ),
+              color: colors.magicGold.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: colors.magicGold, width: 1.5),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.monetization_on, color: colors.magicGold, size: 32),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '所持コイン',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${user?.coins ?? 0}',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                Icon(Icons.monetization_on, color: colors.magicGold, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  '${user?.coins ?? 0}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
           ),
-
+        ],
+      ),
+      body: Column(
+        children: [
           // ピンアイコングリッド
           Expanded(
             child: GridView.builder(
@@ -107,12 +90,12 @@ class ShopScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
                       color: isPurchased
-                          ? colors.magicGold.withValues(alpha: 0.5)
-                          : Colors.white10,
+                          ? colors.magicGold
+                          : Colors.grey.shade400,
                       width: isPurchased ? 2 : 1,
                     ),
                   ),
-                  color: colors.cardSurface.withValues(alpha: 0.8),
+                  color: Colors.white,
                   child: InkWell(
                     onTap: () {
                       // 購入処理を実装
@@ -158,8 +141,8 @@ class ShopScreen extends ConsumerWidget {
                           // スキン名
                           Text(
                             name,
-                            style: TextStyle(
-                              color: colors.textPrimary,
+                            style: const TextStyle(
+                              color: Colors.black,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -199,8 +182,8 @@ class ShopScreen extends ConsumerWidget {
                                 const SizedBox(width: 4),
                                 Text(
                                   '$price',
-                                  style: TextStyle(
-                                    color: colors.textPrimary,
+                                  style: const TextStyle(
+                                    color: Colors.black,
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
                                   ),
