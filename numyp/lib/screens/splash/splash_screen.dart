@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
+import '../auth/auth_screen.dart';
 import '../map/map_screen.dart';
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 
 /// アプリ起動時のロゴムービースプラッシュ画面
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
 
@@ -55,17 +58,24 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// メイン画面（MapScreen）へ遷移
+  /// 認証状態に基づいて適切な画面へ遷移
   void _navigateToHome() {
     if (!mounted) return;
 
     // リスナーを削除
     _controller.removeListener(_videoListener);
 
-    // MapScreenへ遷移（戻るボタンでスプラッシュに戻れないようにする）
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const MapScreen()),
-    );
+    // 認証状態を確認
+    final authState = ref.read(authProvider);
+
+    // 認証済みならMapScreen、未認証ならAuthScreenへ遷移
+    final destination = authState.user != null
+        ? const MapScreen()
+        : const AuthScreen();
+
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (context) => destination));
   }
 
   @override
