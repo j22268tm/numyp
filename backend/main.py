@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
