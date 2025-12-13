@@ -122,6 +122,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   void logout() {
     state = const AuthState();
   }
+
+  /// デバッグモード用の自動ログイン
+  void loginAsDebugUser() {
+    debugPrint('=== デバッグモード: 自動ログイン ===');
+    final debugUser = AppUser(
+      id: 'debug-user-id',
+      username: 'testuser',
+      accessToken: 'debug-token',
+      coins: 0,
+    );
+    state = AuthState(user: debugUser, isLoading: false);
+    debugPrint('デバッグユーザーでログイン完了');
+  }
 }
 
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {

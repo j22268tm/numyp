@@ -28,6 +28,17 @@ class AppConstants {
     return _envConfig?['GMAP_API_KEY'] ?? '';
   }
 
+  /// デバッグモードフラグ
+  static bool get isDebugMode {
+    return _envConfig?['DEBUG'] ?? false;
+  }
+
+  /// デバッグ用テストユーザー名
+  static const String debugUsername = 'testuser';
+
+  /// デバッグ用テストパスワード
+  static const String debugPassword = 'testpass';
+
   /// 地図初期位置
   static const double initialLatitude = 35.6377437;
   static const double initialLongitude = 140.2032806;

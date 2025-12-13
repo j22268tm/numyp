@@ -27,6 +27,14 @@ class MyApp extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final themeMode = ref.watch(themeModeProvider);
 
+    // デバッグモードの場合、自動ログイン
+    if (AppConstants.isDebugMode && authState.user == null && !authState.isLoading) {
+      // フレーム後に実行（ビルド中の状態変更を避けるため）
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(authProvider.notifier).loginAsDebugUser();
+      });
+    }
+
     return MaterialApp(
       title: 'numyp',
       debugShowCheckedModeBanner: false,
