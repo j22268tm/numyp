@@ -5,7 +5,8 @@ import 'config/constants.dart';
 import 'config/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
-import 'screens/splash/splash_screen.dart';
+import 'screens/auth/auth_screen.dart';
+import 'screens/map/map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,18 +36,18 @@ class _MyAppState extends ConsumerState<MyApp> {
     final themeMode = ref.watch(themeModeProvider);
 
     // セッション復元を試行（一度だけ実行）
-    if (authState.user == null &&
-        !authState.isLoading &&
+    if (authState.user == null && 
+        !authState.isLoading && 
         !_hasTriedSessionRestore) {
       _hasTriedSessionRestore = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await ref.read(authProvider.notifier).restoreSession();
-
+        
         // セッション復元に失敗し、デバッグモードの場合は自動ログイン
         if (mounted) {
           final currentState = ref.read(authProvider);
-          if (AppConstants.isDebugMode &&
-              currentState.user == null &&
+          if (AppConstants.isDebugMode && 
+              currentState.user == null && 
               !_hasTriedDebugLogin) {
             _hasTriedDebugLogin = true;
             ref.read(authProvider.notifier).loginAsDebugUser();
@@ -61,7 +62,7 @@ class _MyAppState extends ConsumerState<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      home: const SplashScreen(), // スプラッシュ画面から開始
+      home: authState.user == null ? const AuthScreen() : const MapScreen(),
     );
   }
 }
