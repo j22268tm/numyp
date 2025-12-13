@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../config/constants.dart';
 import '../../config/theme.dart';
@@ -7,9 +8,10 @@ import '../../models/spot.dart';
 import '../../providers/spot_providers.dart';
 
 class SpotFormScreen extends ConsumerStatefulWidget {
-  const SpotFormScreen({super.key, this.spot});
+  const SpotFormScreen({super.key, this.spot, this.initialLocation});
 
   final Spot? spot;
+  final LatLng? initialLocation;
 
   @override
   ConsumerState<SpotFormScreen> createState() => _SpotFormScreenState();
@@ -30,11 +32,13 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
     super.initState();
     _titleController = TextEditingController(text: widget.spot?.content.title ?? '');
     _descriptionController = TextEditingController(text: widget.spot?.content.description ?? '');
+    final initialLat = widget.initialLocation?.latitude ?? AppConstants.initialLatitude;
+    final initialLng = widget.initialLocation?.longitude ?? AppConstants.initialLongitude;
     _latController = TextEditingController(
-      text: (widget.spot?.location.latitude ?? AppConstants.initialLatitude).toString(),
+      text: (widget.spot?.location.latitude ?? initialLat).toString(),
     );
     _lngController = TextEditingController(
-      text: (widget.spot?.location.longitude ?? AppConstants.initialLongitude).toString(),
+      text: (widget.spot?.location.longitude ?? initialLng).toString(),
     );
     _crowdLevel = widget.spot?.status.crowdLevel ?? CrowdLevel.medium;
     _rating = (widget.spot?.status.rating ?? 3).toDouble();
