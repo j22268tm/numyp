@@ -87,3 +87,13 @@ class Spot(Base):
     # Relationships
     author = relationship("User", back_populates="spots")
     skin = relationship("Skin")
+
+class Pin(Base):
+    __tablename__ = "pins"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    description = Column(String, nullable=True)
+    price = Column(Integer)
+    image_url = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
