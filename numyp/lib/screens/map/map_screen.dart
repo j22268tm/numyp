@@ -38,6 +38,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   StreamSubscription<Position>? _positionStreamSubscription;
   bool _isTrackingMode = true;
   LatLng? _currentPosition;
+  bool _isProgrammaticCameraChange = false;
 
   @override
   void initState() {
@@ -54,8 +55,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   @override
-  void dispose() {
-    _positionStreamSubscription?.cancel();
+  Future<void> dispose() async {
+    await _positionStreamSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -133,6 +134,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             _applyMapStyle(ref.read(themeModeProvider));
           },
           onCameraMoveStarted: () {
+            // プログラマティックなカメラ変更の場合はスキップ
+            if (_isProgrammaticCameraChange) return;
             // ユーザーが手動で地図を操作した場合、追従モードを解除
             if (_isTrackingMode) {
               setState(() {
@@ -222,7 +225,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
 
         // 下部のスポットプレビュー
-        if (spotsAsync.hasValue && spotsAsync.value!.isNotEmpty)
+        // if (spotsAsync.hasValue && spotsAsync.value!.isNotEmpty)
+        if (selectedSpot == null &&
+            spotsAsync.hasValue &&
+            spotsAsync.value!.isNotEmpty)
           Positioned(
             left: 0,
             right: 0,
@@ -375,24 +381,30 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// 位置情報のリアルタイム監視を開始
   void _startLocationTracking() async {
     LocationPermission permission = await Geolocator.checkPermission();
+    if (!mounted) return;
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
+      if (!mounted) return;
       if (permission == LocationPermission.denied) {
         debugPrint('位置情報の権限拒否');
         return;
       }
     }
 
-    if (permission == LocationPermission.deniedForever){
+    if (permission == LocationPermission.deniedForever) {
       debugPrint("Location Permission DeniedForever");
       return;
     }
+
+    if (!mounted) return;
 
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 10,
     );
 
+    await _positionStreamSubscription?.cancel();
+    if (!mounted) return;
     _positionStreamSubscription =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
           (Position position) {
@@ -406,6 +418,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   /// 位置情報更新時の処理
   void _onLocationUpdate(Position position) {
+    if (!mounted) return;
     final newPosition = LatLng(position.latitude, position.longitude);
     setState(() {
       _currentPosition = newPosition;
@@ -413,14 +426,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     // 追従モードが有効な場合、カメラを移動
     if (_isTrackingMode && _mapController != null) {
-      _mapController!.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: newPosition,
-            zoom: AppConstants.initialZoom + 1,
-          ),
-        ),
-      );
+      _isProgrammaticCameraChange = true;
+      _mapController!
+          .animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(
+                target: newPosition,
+                zoom: AppConstants.initialZoom + 1,
+              ),
+            ),
+          )
+          .then((_) {
+            _isProgrammaticCameraChange = false;
+          })
+          .catchError((_) {
+            _isProgrammaticCameraChange = false;
+          });
     }
   }
 
@@ -443,14 +464,19 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _currentPosition = currentLatLng;
       });
 
-      await controller.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: currentLatLng,
-            zoom: AppConstants.initialZoom + 1,
+      _isProgrammaticCameraChange = true;
+      try {
+        await controller.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+              target: currentLatLng,
+              zoom: AppConstants.initialZoom + 1,
+            ),
           ),
-        ),
-      );
+        );
+      } finally {
+        _isProgrammaticCameraChange = false;
+      }
     } catch (e) {
       debugPrint('現在地の取得エラー: $e');
     }
@@ -459,11 +485,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Future<void> _moveCamera(LatLng position) async {
     final controller = _mapController;
     if (controller == null) return;
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: position, zoom: AppConstants.initialZoom + 1),
-      ),
-    );
+    _isProgrammaticCameraChange = true;
+    try {
+      await controller.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: position, zoom: AppConstants.initialZoom + 1),
+        ),
+      );
+    } finally {
+      _isProgrammaticCameraChange = false;
+    }
   }
 
   Future<void> _loadMapStyles() async {
