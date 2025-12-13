@@ -29,7 +29,7 @@ class MyPageScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colors.cardSurface.withOpacity(0.8),
+                color: colors.cardSurface.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.white12),
               ),
@@ -38,8 +38,9 @@ class MyPageScreen extends ConsumerWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: colors.fantasyPurple,
-                    backgroundImage:
-                        user?.iconUrl != null ? NetworkImage(user!.iconUrl!) : null,
+                    backgroundImage: user?.iconUrl != null
+                        ? NetworkImage(user!.iconUrl!)
+                        : null,
                     child: user?.iconUrl == null
                         ? const Icon(Icons.person, color: Colors.white)
                         : null,
@@ -58,13 +59,11 @@ class MyPageScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user != null
-                            ? '所持コイン: ${user.coins}'
-                            : '未ログイン',
+                        user != null ? '所持コイン: ${user.coins}' : '未ログイン',
                         style: TextStyle(color: colors.textSecondary),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -80,9 +79,10 @@ class MyPageScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             _buildStatTile(
               context: context,
-                icon: Icons.spa,
-                label: 'スキン',
-                value: user?.currentSkinName ?? 'デフォルト'),
+              icon: Icons.spa,
+              label: 'スキン',
+              value: user?.currentSkinName ?? 'デフォルト',
+            ),
             _buildStatTile(
               context: context,
               icon: Icons.map_outlined,
@@ -94,9 +94,9 @@ class MyPageScreen extends ConsumerWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                    try {
-                      ref.read(authProvider.notifier).logout();
-                      if (context.mounted) {
+                  try {
+                    await ref.read(authProvider.notifier).logout();
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('ログアウトしました')),
                       );
@@ -135,7 +135,7 @@ class MyPageScreen extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.cardSurface.withOpacity(0.7),
+        color: colors.cardSurface.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white10),
       ),
@@ -155,10 +155,7 @@ class MyPageScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(color: colors.textSecondary),
-                )
+                Text(value, style: TextStyle(color: colors.textSecondary)),
               ],
             ),
           ),

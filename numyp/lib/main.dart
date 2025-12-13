@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+// import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'config/constants.dart';
 import 'config/theme.dart';
@@ -19,13 +19,42 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends ConsumerWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  bool _hasTriedDebugLogin = false;
+  bool _hasTriedSessionRestore = false;
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final themeMode = ref.watch(themeModeProvider);
+
+    // セッション復元を試行（一度だけ実行）
+    if (authState.user == null && 
+        !authState.isLoading && 
+        !_hasTriedSessionRestore) {
+      _hasTriedSessionRestore = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await ref.read(authProvider.notifier).restoreSession();
+        
+        // セッション復元に失敗し、デバッグモードの場合は自動ログイン
+        if (mounted) {
+          final currentState = ref.read(authProvider);
+          if (AppConstants.isDebugMode && 
+              currentState.user == null && 
+              !_hasTriedDebugLogin) {
+            _hasTriedDebugLogin = true;
+            ref.read(authProvider.notifier).loginAsDebugUser();
+          }
+        }
+      });
+    }
 
     return MaterialApp(
       title: 'numyp',
