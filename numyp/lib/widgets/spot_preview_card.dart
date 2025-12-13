@@ -41,7 +41,7 @@ class SpotPreviewCard extends StatelessWidget {
                           );
                         },
                         errorBuilder: (context, error, stackTrace) => Container(
-                          color: colors.cardSurface.withValues(alpha: 0.5),
+                          color: colors.cardSurface.withOpacity(0.5),
                           child: Center(
                             child: Icon(
                               Icons.broken_image,
@@ -51,7 +51,7 @@ class SpotPreviewCard extends StatelessWidget {
                         ),
                       )
                     : Container(
-                        color: colors.cardSurface.withValues(alpha: 0.5),
+                        color: colors.cardSurface.withOpacity(0.5),
                         child: Center(
                           child: Icon(
                             Icons.image_not_supported,

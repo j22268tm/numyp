@@ -57,7 +57,7 @@ class PinListScreen extends ConsumerWidget {
                   onDelete: () => _confirmDelete(context, ref, spot),
                 );
               },
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemCount: spots.length,
             ),
           );

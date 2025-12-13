@@ -107,8 +107,8 @@ class AppTheme {
         iconTheme: IconThemeData(color: colors.textPrimary),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: colors.cardSurface.withValues(
-          alpha: brightness == Brightness.dark ? 0.9 : 0.95,
+        backgroundColor: colors.cardSurface.withOpacity(
+          brightness == Brightness.dark ? 0.9 : 0.95,
         ),
         selectedItemColor: colors.magicGold,
         unselectedItemColor: colors.textSecondary,
