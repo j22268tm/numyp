@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../config/constants.dart';
 import '../../config/theme.dart';
@@ -10,10 +14,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/spot_providers.dart';
 
 class SpotFormScreen extends ConsumerStatefulWidget {
-  const SpotFormScreen({super.key, this.spot, this.initialLocation});
+  const SpotFormScreen({super.key, this.spot, this.initialLocation, this.imageSource});
 
   final Spot? spot;
   final LatLng? initialLocation;
+  final ImageSource? imageSource;
 
   @override
   ConsumerState<SpotFormScreen> createState() => _SpotFormScreenState();
@@ -30,6 +35,11 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
   bool _isSaving = false;
   bool _isGenerating = false;
 
+  final ImagePicker _imagePicker = ImagePicker();
+  Uint8List? _imageBytes;
+  String? _imageBase64;
+  bool _isPickingImage = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +55,13 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
     );
     _crowdLevel = widget.spot?.status.crowdLevel ?? CrowdLevel.medium;
     _rating = (widget.spot?.status.rating ?? 3).toDouble();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final source = widget.imageSource;
+      if (source == null) return;
+      await _pickImage(source);
+    });
   }
 
   @override
@@ -86,6 +103,8 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 12),
+              _buildImagePickerSection(context),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
@@ -229,6 +248,151 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
     );
   }
 
+  Widget _buildImagePickerSection(BuildContext context) {
+    final colors = AppColors.of(context);
+    final hasPickedImage = _imageBytes != null;
+    final existingUrl = widget.spot?.content.imageUrl;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isPickingImage
+                    ? null
+                    : () async {
+                        final source = await _showImageSourceDialog(context);
+                        if (!mounted || source == null) return;
+                        await _pickImage(source);
+                      },
+                icon: _isPickingImage
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.photo_library_outlined),
+                label: Text(
+                  hasPickedImage || existingUrl != null ? '写真を変更' : '写真を選ぶ',
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (hasPickedImage)
+              IconButton(
+                tooltip: '写真を外す',
+                onPressed: () => setState(() {
+                  _imageBytes = null;
+                  _imageBase64 = null;
+                }),
+                icon: const Icon(Icons.delete_outline),
+              ),
+          ],
+        ),
+        if (hasPickedImage) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+            ),
+          ),
+        ] else if (existingUrl != null) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Image.network(
+                existingUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: colors.cardSurface,
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.broken_image,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<ImageSource?> _showImageSourceDialog(BuildContext context) {
+    final colors = AppColors.of(context);
+    return showDialog<ImageSource>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: colors.cardSurface,
+          title: Text('画像の選択', style: TextStyle(color: colors.textPrimary)),
+          content: Text(
+            'スポットの画像をどのように取得しますか？',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(ImageSource.camera),
+              child: const Text('カメラで撮影'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(ImageSource.gallery),
+              child: const Text('ギャラリーから選択'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('キャンセル'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (_isPickingImage) return;
+    setState(() => _isPickingImage = true);
+    try {
+      final file = await _imagePicker.pickImage(source: source, imageQuality: 85);
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      if (bytes.length > 10 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('画像が大きすぎます（10MBまで）')),
+          );
+        }
+        return;
+      }
+
+      final lower = file.path.toLowerCase();
+      final contentType = lower.endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+      if (!mounted) return;
+      setState(() {
+        _imageBytes = bytes;
+        _imageBase64 = 'data:$contentType;base64,${base64Encode(bytes)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('画像の選択に失敗しました: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
+    }
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final lat = double.tryParse(_latController.text);
@@ -246,6 +410,7 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
           description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
           crowdLevel: _crowdLevel,
           rating: _rating.round(),
+          imageBase64: _imageBase64,
         );
       } else {
         await notifier.updateSpot(
@@ -256,6 +421,7 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
           description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
           crowdLevel: _crowdLevel,
           rating: _rating.round(),
+          imageBase64: _imageBase64,
         );
       }
       if (mounted) {

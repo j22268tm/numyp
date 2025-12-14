@@ -36,6 +36,7 @@ class SpotsController extends AsyncNotifier<List<Spot>> {
     String? description,
     CrowdLevel crowdLevel = CrowdLevel.medium,
     int rating = 3,
+    String? imageBase64,
   }) async {
     final token = _requireToken();
     final newSpot = await _client.createSpot(
@@ -46,6 +47,7 @@ class SpotsController extends AsyncNotifier<List<Spot>> {
       description: description,
       crowdLevel: crowdLevel,
       rating: rating,
+      imageBase64: imageBase64,
     );
 
     final current = state.valueOrNull ?? <Spot>[];
@@ -61,6 +63,7 @@ class SpotsController extends AsyncNotifier<List<Spot>> {
     String? description,
     required CrowdLevel crowdLevel,
     required int rating,
+    String? imageBase64,
   }) async {
     final token = _requireToken();
     final updatedSpot = await _client.updateSpot(
@@ -72,6 +75,7 @@ class SpotsController extends AsyncNotifier<List<Spot>> {
       description: description,
       crowdLevel: crowdLevel,
       rating: rating,
+      imageBase64: imageBase64,
     );
 
     final current = state.valueOrNull ?? <Spot>[];

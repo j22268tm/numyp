@@ -9,10 +9,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../config/theme.dart';
 import '../../models/quest.dart';
-import '../../providers/api_client_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/quest_provider.dart';
 import 'quest_completion_report_screen.dart';
+import 'quest_form_screen.dart';
 import 'quest_notifications_screen.dart';
 
 class QuestBoardScreen extends ConsumerStatefulWidget {
@@ -75,7 +75,7 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreateSheet(context),
+        onPressed: () => _openCreateScreen(context),
         backgroundColor: colors.magicGold,
         foregroundColor: Colors.black,
         icon: const Icon(Icons.add_task_rounded),
@@ -332,161 +332,22 @@ class _QuestBoardScreenState extends ConsumerState<QuestBoardScreen> {
     }
   }
 
-  Future<void> _openCreateSheet(BuildContext context) async {
-    final titleController = TextEditingController();
-    final detailController = TextEditingController();
-    final bountyController = TextEditingController(text: '20');
+  Future<void> _openCreateScreen(BuildContext context) async {
     final pos = _currentPosition;
-    var isGenerating = false;
-
-    final shouldCreate = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final colors = AppColors.of(context);
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom + 12,
-                left: 16,
-                right: 16,
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: colors.cardSurface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white10),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '調査依頼ピンを作成',
-                          style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(false),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: titleController,
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        labelText: '今知りたいこと',
-                        labelStyle: TextStyle(color: colors.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: detailController,
-                      maxLines: 2,
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        labelText: '依頼内容の詳細',
-                        labelStyle: TextStyle(color: colors.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed:
-                            (pos == null || isGenerating)
-                                ? null
-                                : () async {
-                                  final user = ref.read(authProvider).user;
-                                  if (user == null) return;
-
-                                  setModalState(() => isGenerating = true);
-                                  try {
-                                    final client = ref.read(apiClientProvider);
-                                    final draft = await client.generateQuestDraft(
-                                      token: user.accessToken,
-                                      lat: pos.latitude,
-                                      lng: pos.longitude,
-                                      hint: titleController.text,
-                                      currentTitle: titleController.text,
-                                      currentDescription: detailController.text,
-                                    );
-                                    titleController.text = draft.title;
-                                    detailController.text = draft.description;
-                                  } catch (e) {
-                                    if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('AI提案の取得に失敗しました: $e')),
-                                    );
-                                  } finally {
-                                    if (context.mounted) {
-                                      setModalState(() => isGenerating = false);
-                                    }
-                                  }
-                                },
-                        icon:
-                            isGenerating
-                                ? SizedBox(
-                                  height: 16,
-                                  width: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.magicGold,
-                                  ),
-                                )
-                                : Icon(Icons.auto_awesome, color: colors.magicGold),
-                        label: Text(isGenerating ? '生成中...' : 'AIで提案'),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: bountyController,
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        labelText: '懸賞金を設定（コイン）',
-                        labelStyle: TextStyle(color: colors.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.place_outlined),
-                        onPressed: () => Navigator.of(context).pop(true),
-                        label: Text(pos == null ? '現在地を使えません' : 'この場所にピンを立てる'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (shouldCreate == true && pos != null) {
-      final bounty = int.tryParse(bountyController.text) ?? 10;
-      await ref.read(questControllerProvider.notifier).createQuest(
-            title: titleController.text.isEmpty ? '新しい依頼' : titleController.text,
-            description: detailController.text.isEmpty ? 'ウォーカーに状況を確認してほしい' : detailController.text,
-            location: LatLng(pos.latitude, pos.longitude),
-            bountyCoins: bounty,
-          );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('調査依頼ピンを作成しました')),
-        );
-      }
+    if (pos == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_locationError ?? '現在地を取得中です')),
+      );
+      return;
     }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuestFormScreen(
+          initialLocation: LatLng(pos.latitude, pos.longitude),
+        ),
+      ),
+    );
   }
 }
 
