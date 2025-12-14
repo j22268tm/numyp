@@ -41,10 +41,14 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   LatLng? _currentPosition;
   bool _isProgrammaticCameraChange = false;
 
+  // ユーザー位置マーカーアイコンのキャッシュ
+  BitmapDescriptor? _userLocationIcon;
+
   @override
   void initState() {
     super.initState();
     _loadMapStyles();
+    _loadUserLocationIcon(); // マーカーアイコンをキャッシュ
     _initialCameraPosition = const CameraPosition(
       target: LatLng(
         AppConstants.initialLatitude,
@@ -56,7 +60,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   @override
-  // Future<void> dispose() async {
   void dispose() {
     unawaited(_positionStreamSubscription?.cancel());
     _mapController?.dispose();
@@ -113,13 +116,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget _buildMapView(BuildContext context) {
     final spotsAsync = ref.watch(spotsControllerProvider);
-    final markers = ref.watch(markerProvider);
+    final spotMarkers = ref.watch(markerProvider);
     final selectedSpot = ref.watch(selectedSpotProvider);
 
     final user = ref.watch(authProvider).user;
     final colors = AppColors.of(context);
     final themeMode = ref.watch(themeModeProvider);
     final isDarkMode = themeMode == ThemeMode.dark;
+
+    // マーカーセットを構築（ユーザー位置マーカーを追加）
+    final markers = _buildMarkers(spotMarkers);
 
     return Stack(
       children: [
@@ -145,7 +151,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           zoomControlsEnabled: false,
           mapToolbarEnabled: false,
           myLocationButtonEnabled: false,
-          myLocationEnabled: true, // デフォルトの青い点で現在地と方向を表示
+          myLocationEnabled: false, // カスタムマーカーを使用するため無効化
           markers: markers,
         ),
 
@@ -224,7 +230,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         ),
 
         // 下部のスポットプレビュー
-        // if (spotsAsync.hasValue && spotsAsync.value!.isNotEmpty)
         if (selectedSpot == null &&
             spotsAsync.hasValue &&
             spotsAsync.value!.isNotEmpty)
@@ -345,37 +350,46 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     );
   }
 
-  /// ユーザーの現在位置を表すカスタムマーカーを作成
-  ///
-  /// 後から画像に置き換える場合は、以下の手順で実装してください：
-  /// 1. assets/images/ に画像ファイルを配置（例: user_location_pin.png）
-  /// 2. pubspec.yaml の assets セクションに画像を追加
-  /// 3. BitmapDescriptor.fromAssetImage() を使用してアイコンを読み込む
-  ///
-  /// 例：
-  /// ```dart
-  /// final icon = await BitmapDescriptor.fromAssetImage(
-  ///   const ImageConfiguration(size: Size(48, 48)),
-  ///   'assets/images/user_location_pin.png',
-  /// );
-  /// ```
-
-  // 現在は myLocationEnabled: true を使用しているため、このメソッドは使用していません
-  // カスタム画像に置き換えたい場合は、以下のコメントを解除して使用してください
-  /*
-  Marker _createUserLocationMarker() {
-    return Marker(
-      markerId: const MarkerId('user_location'),
-      position: _currentPosition!,
-      // TODO: 画像に置き換える場合は、ここでBitmapDescriptor.fromAssetImage()を使用
-      // 現在はデフォルトのマーカーを青色で表示
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      anchor: const Offset(0.5, 0.5), // マーカーの中心を位置に合わせる
-      zIndex: 999, // 他のマーカーより前面に表示
-      infoWindow: const InfoWindow(title: '現在地', snippet: 'あなたの現在位置です'),
-    );
+  /// マーカーアイコンをキャッシュとして読み込む
+  Future<void> _loadUserLocationIcon() async {
+    try {
+      final icon = await BitmapDescriptor.asset(
+        const ImageConfiguration(size: Size(100, 100)),
+        'assets/images/user_location_pin.png',
+      );
+      if (!mounted) return;
+      setState(() {
+        _userLocationIcon = icon;
+      });
+    } catch (e) {
+      debugPrint('Failed to load user location icon: $e');
+      // アセットの読み込みに失敗した場合はデフォルトマーカーを使用
+      if (!mounted) return;
+      setState(() {
+        _userLocationIcon = BitmapDescriptor.defaultMarker;
+      });
+    }
   }
-  */
+
+  /// マーカーセットを構築（ユーザー位置マーカーを追加）
+  Set<Marker> _buildMarkers(Set<Marker> spotMarkers) {
+    final markers = Set<Marker>.from(spotMarkers);
+
+    // ユーザーの現在位置マーカーを追加
+    if (_currentPosition != null && _userLocationIcon != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('user_location'),
+          position: _currentPosition!,
+          icon: _userLocationIcon!,
+          anchor: const Offset(0.5, 0.5),
+          zIndex: 999,
+        ),
+      );
+    }
+
+    return markers;
+  }
 
   /// 位置情報のリアルタイム監視を開始
   void _startLocationTracking() async {
