@@ -4,6 +4,10 @@
 2. env.jsonのapiキーを書き換える
 3. flutter pub get && flutter runで起動できるはず...
 
+## AI（Ollama）
+
+バックエンドにOllama連携API（`/ai/quest-draft`, `/ai/spot-draft`）を追加しています。`backend/.env`に`OLLAMA_BASE_URL`と`OLLAMA_MODEL`を設定してください（デフォルトは`gemma3:12b`）。
+
 ## デバッグモード
 
 開発を容易にするため、env.jsonにDEBUGフラグを設定することで、ログイン画面をスキップして自動的にテストユーザーでログインできます。

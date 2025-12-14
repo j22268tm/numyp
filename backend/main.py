@@ -18,6 +18,11 @@ import base64
 from io import BytesIO
 import logging
 import math
+import json
+import re
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+import socket
 
 # 環境変数を読み込み
 load_dotenv()
@@ -132,6 +137,68 @@ def _haversine_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) ->
     )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return int(r * c)
+
+
+def _ollama_base_url() -> str:
+    return os.getenv("OLLAMA_BASE_URL", "http://100.99.165.61:11434").rstrip("/")
+
+
+def _ollama_model() -> str:
+    return os.getenv("OLLAMA_MODEL", "gemma3:12b")
+
+
+def _extract_json_object(text: str) -> dict:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    try:
+        obj = json.loads(cleaned)
+        if isinstance(obj, dict):
+            return obj
+    except Exception:
+        pass
+
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("No JSON object found in model output")
+    return json.loads(cleaned[start : end + 1])
+
+
+def _ollama_chat(messages: list[dict], *, temperature: float = 0.7) -> str:
+    payload = {
+        "model": _ollama_model(),
+        "messages": messages,
+        "stream": False,
+        "options": {"temperature": temperature},
+    }
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = Request(
+        f"{_ollama_base_url()}/api/chat",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=45) as resp:
+            raw = resp.read().decode("utf-8")
+    except HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore") if hasattr(e, "read") else str(e)
+        raise HTTPException(status_code=502, detail=f"Ollama error: {detail}") from None
+    except URLError as e:
+        raise HTTPException(status_code=502, detail=f"Ollama unreachable: {e.reason}") from None
+    except (TimeoutError, socket.timeout):
+        raise HTTPException(status_code=504, detail="Ollama timeout") from None
+
+    try:
+        parsed = json.loads(raw)
+        return (parsed.get("message") or {}).get("content") or ""
+    except Exception:
+        raise HTTPException(status_code=502, detail="Invalid response from Ollama") from None
 
 
 def _spot_to_response(spot: models.Spot, include_description: bool = True) -> schemas.SpotResponse:
@@ -790,6 +857,98 @@ def mark_notification_read(
     except Exception:
         logger.exception("Failed to mark notification read")
         raise HTTPException(status_code=500, detail="Failed to update notification") from None
+
+
+@app.post("/ai/quest-draft", response_model=schemas.AiQuestDraftResponse)
+def ai_quest_draft(
+    payload: schemas.AiQuestDraftRequest,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+):
+    """クエスト作成のタイトル/説明文をAIで下書き生成"""
+    system = (
+        "あなたは『Numyp』という地図アプリのAIアシスタントです。"
+        "ユーザーが作成する『調査依頼(クエスト)』のタイトルと説明文を日本語で下書きします。"
+        "出力は必ずJSONのみで、他の文章は一切出さないでください。"
+        'フォーマット: {"title":"...","description":"..."}。'
+        "titleは80文字以内、descriptionは500文字以内。"
+        "現地の状況確認を依頼する文脈で、丁寧で具体的に。"
+        "緯度経度から住所や個人情報を推測しない。"
+    )
+
+    hint = payload.hint or ""
+    current_title = payload.current_title or ""
+    current_description = payload.current_description or ""
+    user = (
+        f"位置: lat={payload.lat}, lng={payload.lng}\n"
+        f"ユーザーのヒント: {hint}\n"
+        f"現在入力されているタイトル: {current_title}\n"
+        f"現在入力されている説明: {current_description}\n"
+        "上記を踏まえて、短く分かりやすい下書きを作って。"
+    )
+
+    content = _ollama_chat(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.6,
+    )
+
+    try:
+        obj = _extract_json_object(content)
+        title = str(obj.get("title") or "").strip()
+        description = str(obj.get("description") or "").strip()
+        if not title or not description:
+            raise ValueError("Missing title/description")
+        return schemas.AiQuestDraftResponse(title=title, description=description)
+    except Exception:
+        logger.info("AI quest draft parse failed: %s", content)
+        raise HTTPException(status_code=502, detail="Failed to parse AI response") from None
+
+
+@app.post("/ai/spot-draft", response_model=schemas.AiSpotDraftResponse)
+def ai_spot_draft(
+    payload: schemas.AiSpotDraftRequest,
+    current_user: Annotated[models.User, Depends(get_current_user_model)],
+):
+    """スポット説明文をAIで下書き生成"""
+    system = (
+        "あなたは『Numyp』という地図アプリのAIアシスタントです。"
+        "ユーザーが作成する『スポット』の説明文を日本語で下書きします。"
+        "出力は必ずJSONのみで、他の文章は一切出さないでください。"
+        'フォーマット: {"description":"..."}。'
+        "descriptionは200文字以内。"
+        "誇張しすぎず、行く価値が分かる要点を1〜3文で。"
+        "緯度経度から住所や個人情報を推測しない。"
+    )
+
+    hint = payload.hint or ""
+    current_description = payload.current_description or ""
+    user = (
+        f"スポット名(タイトル): {payload.title}\n"
+        f"位置: lat={payload.lat}, lng={payload.lng}\n"
+        f"ユーザーのヒント: {hint}\n"
+        f"現在の説明: {current_description}\n"
+        "上記を踏まえて、短い説明文の下書きを作って。"
+    )
+
+    content = _ollama_chat(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.6,
+    )
+
+    try:
+        obj = _extract_json_object(content)
+        description = str(obj.get("description") or "").strip()
+        if not description:
+            raise ValueError("Missing description")
+        return schemas.AiSpotDraftResponse(description=description)
+    except Exception:
+        logger.info("AI spot draft parse failed: %s", content)
+        raise HTTPException(status_code=502, detail="Failed to parse AI response") from None
 
 # uvicorn main:app --reload
 # uvicorn main:app --host 0.0.0.0 --port 8000

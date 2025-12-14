@@ -249,4 +249,56 @@ class ApiClient {
     );
     return AppNotification.fromJson(response.data as Map<String, dynamic>);
   }
+
+  // --- AI (via backend -> Ollama) ---
+  Future<({String title, String description})> generateQuestDraft({
+    required String token,
+    required double lat,
+    required double lng,
+    String? hint,
+    String? currentTitle,
+    String? currentDescription,
+  }) async {
+    final response = await _dio.post(
+      '/ai/quest-draft',
+      data: {
+        'lat': lat,
+        'lng': lng,
+        'hint': hint,
+        'current_title': currentTitle,
+        'current_description': currentDescription,
+      }..removeWhere((_, v) => v == null),
+      options: _authOptions(token),
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return (
+      title: data['title'] as String,
+      description: data['description'] as String,
+    );
+  }
+
+  Future<String> generateSpotDescription({
+    required String token,
+    required double lat,
+    required double lng,
+    required String title,
+    String? hint,
+    String? currentDescription,
+  }) async {
+    final response = await _dio.post(
+      '/ai/spot-draft',
+      data: {
+        'lat': lat,
+        'lng': lng,
+        'title': title,
+        'hint': hint,
+        'current_description': currentDescription,
+      }..removeWhere((_, v) => v == null),
+      options: _authOptions(token),
+    );
+
+    final data = response.data as Map<String, dynamic>;
+    return data['description'] as String;
+  }
 }

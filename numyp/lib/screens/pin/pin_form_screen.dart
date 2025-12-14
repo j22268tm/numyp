@@ -5,6 +5,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../config/constants.dart';
 import '../../config/theme.dart';
 import '../../models/spot.dart';
+import '../../providers/api_client_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/spot_providers.dart';
 
 class SpotFormScreen extends ConsumerStatefulWidget {
@@ -26,6 +28,7 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
   late CrowdLevel _crowdLevel;
   late double _rating;
   bool _isSaving = false;
+  bool _isGenerating = false;
 
   @override
   void initState() {
@@ -84,6 +87,21 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
                 },
               ),
               const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _isGenerating ? null : _generateDescription,
+                  icon:
+                      _isGenerating
+                          ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.auto_awesome),
+                  label: const Text('AIで説明生成'),
+                ),
+              ),
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
@@ -254,6 +272,47 @@ class _SpotFormScreenState extends ConsumerState<SpotFormScreen> {
     } finally {
       if (mounted) {
         setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  Future<void> _generateDescription() async {
+    final user = ref.read(authProvider).user;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ログインしてください')),
+      );
+      return;
+    }
+
+    final lat = double.tryParse(_latController.text);
+    final lng = double.tryParse(_lngController.text);
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('緯度/経度が不正です')),
+      );
+      return;
+    }
+
+    setState(() => _isGenerating = true);
+    try {
+      final client = ref.read(apiClientProvider);
+      final description = await client.generateSpotDescription(
+        token: user.accessToken,
+        lat: lat,
+        lng: lng,
+        title: _titleController.text.isEmpty ? 'スポット' : _titleController.text,
+        currentDescription: _descriptionController.text,
+      );
+      _descriptionController.text = description;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI生成に失敗しました: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isGenerating = false);
       }
     }
   }

@@ -12,6 +12,8 @@ R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
 R2_BUCKET_NAME=numyp
 R2_ENDPOINT_URL=https://629fe30a093677c64b0a0705ff4d90ce.r2.cloudflarestorage.com
 R2_PUBLIC_URL=https://s3.korucha.com
+OLLAMA_BASE_URL=http://100.99.165.61:11434
+OLLAMA_MODEL=gemma3:12b
 ```
 
 ### SECRET_KEYの生成
@@ -119,4 +121,54 @@ numyp (bucket)
 ├── user_icons/     # ユーザーアイコン
 ├── images/         # その他の画像
 └── test/           # テスト用
+```
+
+## AI（Ollama）
+
+バックエンドがOllamaを呼び出し、フロントからはNumyp APIとして利用します（クライアントから11434を直接叩かない設計）。
+
+### 1. クエスト下書き生成
+
+```http
+POST /ai/quest-draft
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "lat": 35.6812,
+  "lng": 139.7671,
+  "hint": "この場所の混雑具合を知りたい",
+  "current_title": "",
+  "current_description": ""
+}
+```
+
+**レスポンス:**
+```json
+{
+  "title": "いま混雑しているか教えてください",
+  "description": "現地の混雑状況（人の多さ、行列の有無、移動しやすさ）を写真付きで教えてください。可能なら時間帯も添えてください。"
+}
+```
+
+### 2. スポット説明文生成
+
+```http
+POST /ai/spot-draft
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "lat": 35.6812,
+  "lng": 139.7671,
+  "title": "夕日がきれいな橋",
+  "hint": "落ち着いた雰囲気で"
+}
+```
+
+**レスポンス:**
+```json
+{
+  "description": "川沿いの風が気持ちいい橋。夕方は夕日がきれいで、のんびり散歩したい人におすすめです。"
+}
 ```

@@ -223,3 +223,29 @@ class QuestCompletionReportResponse(BaseModel):
     comment: Optional[str] = None
     reported_at: Optional[datetime] = None
     report_location: Optional[LocationInfo] = None
+
+
+# --- AI (Ollama) ---
+class AiQuestDraftRequest(BaseModel):
+    lat: float
+    lng: float
+    hint: Optional[str] = Field(None, max_length=500, description="User-provided context / what they want to know")
+    current_title: Optional[str] = Field(None, max_length=80)
+    current_description: Optional[str] = Field(None, max_length=500)
+
+
+class AiQuestDraftResponse(BaseModel):
+    title: str = Field(..., min_length=1, max_length=80)
+    description: str = Field(..., min_length=1, max_length=500)
+
+
+class AiSpotDraftRequest(BaseModel):
+    lat: float
+    lng: float
+    title: str = Field(..., min_length=1, max_length=50)
+    hint: Optional[str] = Field(None, max_length=500, description="Optional extra info (mood, what to highlight, etc.)")
+    current_description: Optional[str] = Field(None, max_length=200)
+
+
+class AiSpotDraftResponse(BaseModel):
+    description: str = Field(..., min_length=1, max_length=200)

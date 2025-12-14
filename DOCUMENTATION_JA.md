@@ -30,6 +30,8 @@
   - `/users/me` で JWT に紐づくユーザーを返却。所持コインと現在のスキン情報も含む。【F:backend/main.py†L334-L362】【F:backend/schemas.py†L83-L101】
 - ショップ
   - `/shop/buy` でスキン購入。残高不足、未存在、重複購入などのエラーを返却し、成功時に残コインを返す。【F:backend/main.py†L426-L479】
+- AI（Ollama）
+  - `/ai/quest-draft` でクエスト作成のタイトル/説明文を下書き生成、`/ai/spot-draft` でスポット説明文を下書き生成（どちらも要JWT）。
 
 ## データモデル（SQLAlchemy）
 - User: `username`、`hashed_password`、`icon_url`、`coins`、`current_skin_id` を持ち、投稿スポットと保有スキンに関連。【F:backend/models.py†L17-L42】
@@ -41,10 +43,10 @@
 - フロントエンド: `numyp/env.json` を用意し、`API_BASE_URL` と `GMAP_API_KEY` を設定する。`flutter pub get` 後に `flutter run` で起動。【F:numyp/lib/config/constants.dart†L4-L32】
   - デバッグモード: `env.json` に `"DEBUG": true` を設定すると、ログイン画面をスキップして自動的にテストユーザー（testuser/testpass）でログインする。開発時のみ使用し、本番環境では必ず `false` にすること。
 - バックエンド: `backend/.env` に DB 接続、JWT `SECRET_KEY`、Cloudflare R2 の各種キーを設定し、`pip install -r requirements.txt` で依存を導入する。必要に応じて `python test_r2.py` で R2 接続を検証。【F:backend/readme.md†L1-L48】
+  - AI: `OLLAMA_BASE_URL` と `OLLAMA_MODEL` を設定すると、バックエンド経由でOllamaに接続できる。
 
 ## 現状のユースケース例
 1. ユーザー登録 → `/auth/signup` → `/auth/login` で JWT を取得。
 2. アプリにトークンを設定し `/users/me` でプロフィールを読み込む。マップ画面でスポット一覧を取得（`/spots`）。
 3. スポット投稿時は位置・タイトル等とともに必要なら base64 画像を送信し、R2 に保存された画像 URL がレスポンスに含まれる。
 4. ショップでスキンを購入するとコイン残高が更新され、以後のスポットにスキンが紐づく。
-
