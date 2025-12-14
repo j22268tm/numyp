@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 from uuid import UUID
+from pydantic import BaseModel
 
 
 # 定数定義
@@ -112,3 +113,22 @@ class CheckinResponse(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+# Pins
+class PinBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: int
+    image_url: str
+
+class PinCreate(PinBase):
+    pass
+
+class PinResponse(PinBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+

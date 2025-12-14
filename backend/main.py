@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Query, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from typing import List, Optional, Annotated
@@ -17,6 +18,7 @@ from r2_storage import get_r2_storage
 import base64
 from io import BytesIO
 import logging
+from routers import Pins as pins
 
 # 環境変数を読み込み
 load_dotenv()
@@ -38,6 +40,9 @@ app = FastAPI(
     description="API for Numyp",
     version="1.0.0"
 )
+
+# データベースのテーブルを作成（起動時）
+models.Base.metadata.create_all(bind=engine)
 
 
 # CORS
@@ -522,3 +527,12 @@ def buy_item(
     }
 
 # uvicorn main:app --reload
+
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static",
+)
+
+#routersを登録
+app.include_router(pins.router)
