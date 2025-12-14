@@ -10,22 +10,30 @@ import 'api_client_provider.dart';
 import 'session_storage_provider.dart';
 
 class AuthState {
-  const AuthState({this.user, this.isLoading = false, this.errorMessage});
+  const AuthState({
+    this.user,
+    this.isLoading = false,
+    this.errorMessage,
+    this.hasRestoredSession = false,
+  });
 
   final AppUser? user;
   final bool isLoading;
   final String? errorMessage;
+  final bool hasRestoredSession;
 
   AuthState copyWith({
     AppUser? user,
     bool clearUser = false,
     bool? isLoading,
     String? errorMessage,
+    bool? hasRestoredSession,
   }) {
     return AuthState(
       user: clearUser ? null : (user ?? this.user),
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
+      hasRestoredSession: hasRestoredSession ?? this.hasRestoredSession,
     );
   }
 }
@@ -99,10 +107,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('ユーザー情報取得中...');
       final user = await _client.fetchCurrentUser(token);
       debugPrint('ユーザー情報取得成功: ${user.username}');
-      
+
       // 状態を更新
-      state = AuthState(user: user, isLoading: false);
-      
+      state = AuthState(
+        user: user,
+        isLoading: false,
+        hasRestoredSession: state.hasRestoredSession,
+      );
+
       // セッショントークンを保存（状態更新後）
       // 保存に失敗してもログインは成功として扱う
       try {
@@ -136,41 +148,50 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _sessionStorage.clearToken();
-    state = const AuthState();
+    state = const AuthState(hasRestoredSession: true);
     debugPrint('ログアウトしました - セッショントークンをクリアしました');
   }
 
   /// 保存されたトークンからセッションを復元
   Future<void> restoreSession() async {
     debugPrint('=== セッション復元開始 ===');
-    
+
     final token = await _sessionStorage.getToken();
     if (token == null) {
       debugPrint('保存されたトークンが見つかりません');
+      state = state.copyWith(hasRestoredSession: true, isLoading: false);
       return;
     }
 
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       debugPrint('保存されたトークンでユーザー情報取得中...');
       final user = await _client.fetchCurrentUser(token);
       debugPrint('セッション復元成功: ${user.username}');
-      state = AuthState(user: user, isLoading: false);
+      state = AuthState(user: user, isLoading: false, hasRestoredSession: true);
     } on DioException catch (e) {
       debugPrint('=== セッション復元失敗 ===');
       debugPrint('ステータスコード: ${e.response?.statusCode}');
       debugPrint('トークンが無効または期限切れの可能性があります');
-      
+
       // トークンが無効な場合はクリア
       await _sessionStorage.clearToken();
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(
+        isLoading: false,
+        clearUser: true,
+        hasRestoredSession: true,
+      );
     } catch (e) {
       debugPrint('=== セッション復元エラー ===');
       debugPrint('エラー: $e');
-      
+
       // エラーが発生した場合もトークンをクリア
       await _sessionStorage.clearToken();
-      state = state.copyWith(isLoading: false);
+      state = state.copyWith(
+        isLoading: false,
+        clearUser: true,
+        hasRestoredSession: true,
+      );
     }
     debugPrint('=== セッション復元終了 ===');
   }
@@ -185,7 +206,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       accessToken: 'debug-token',
       coins: 0,
     );
-    state = AuthState(user: debugUser, isLoading: false);
+    state = const AuthState(hasRestoredSession: true).copyWith(user: debugUser);
     debugPrint('デバッグユーザーでログイン完了');
   }
 }
